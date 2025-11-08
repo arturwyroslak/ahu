@@ -51,6 +51,13 @@ Preferred communication style: Simple, everyday language.
 
 **Key Services:**
 - `AIService`: Manages connections to OpenAI-compatible endpoints, handles task planning and reasoning generation
+- `AIProviderManager`: **NEW** - Multi-provider AI orchestration system that supports OpenAI, Anthropic Claude, and Azure OpenAI with:
+  - Smart routing algorithm based on task complexity, context size, rate limits, and user preferences
+  - Automatic failover between providers for high availability
+  - Comprehensive error handling with exponential backoff retry logic (max 3 attempts, 120s timeout)
+  - Rate limiting with request queueing (429 errors)
+  - Performance tracking (response times, token usage, success rates, cost tracking)
+  - Provider-specific adapters for OpenAI and Anthropic message formats
 - `GitHubService`: Integrates with GitHub API for repository operations, file content retrieval, and webhook processing
 - `Storage`: In-memory storage implementation (IStorage interface allows for future database backends)
 
@@ -81,8 +88,18 @@ Preferred communication style: Simple, everyday language.
 ### External Dependencies
 
 **AI Model Integration:**
-- OpenAI-compatible API endpoints (supports OpenAI, Anthropic, Mistral, Ollama, custom local APIs)
-- Configurable model selection, temperature, and max tokens
+- **Multi-Provider System** with intelligent routing:
+  - **OpenAI**: GPT-4 Turbo (128K context window, 0.3-0.7 temperature)
+  - **Anthropic**: Claude 3 Sonnet (200K context window, 1.0 temperature)
+  - **Azure OpenAI**: Enterprise-grade deployment support
+- Smart provider selection based on:
+  - Task complexity (threshold: 0.7 for advanced models)
+  - Context size (threshold: 90,000 tokens for large context models)
+  - Rate limit remaining (threshold: 20% for fallback triggers)
+  - User preference settings
+- Automatic failover and load balancing
+- Real-time performance metrics and cost tracking
+- Configurable model selection, temperature, and max tokens per provider
 - Chat completion interface for reasoning and task generation
 
 **GitHub Integration:**

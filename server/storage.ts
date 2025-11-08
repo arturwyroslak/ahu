@@ -7,6 +7,10 @@ import {
   type LogEntry,
   type ReasoningStep,
   type FileDiff,
+  type RepositoryContext,
+  type InsertRepositoryContext,
+  type MCPConnection,
+  type InsertMCPConnection,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -31,16 +35,32 @@ export interface IStorage {
   // Settings
   getSettings(): Promise<Settings | undefined>;
   updateSettings(settings: Partial<Settings>): Promise<Settings>;
+  
+  // Repository Contexts
+  getRepositoryContext(repository: string): Promise<RepositoryContext | undefined>;
+  createRepositoryContext(context: InsertRepositoryContext): Promise<RepositoryContext>;
+  updateRepositoryContext(repository: string, updates: Partial<RepositoryContext>): Promise<RepositoryContext | undefined>;
+  
+  // MCP Connections
+  getMCPConnection(id: string): Promise<MCPConnection | undefined>;
+  getAllMCPConnections(): Promise<MCPConnection[]>;
+  createMCPConnection(connection: InsertMCPConnection): Promise<MCPConnection>;
+  updateMCPConnection(id: string, updates: Partial<MCPConnection>): Promise<MCPConnection | undefined>;
+  deleteMCPConnection(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
   private tasks: Map<string, Task>;
   private events: Map<string, GithubEvent>;
   private settings: Settings | undefined;
+  private repositoryContexts: Map<string, RepositoryContext>;
+  private mcpConnections: Map<string, MCPConnection>;
 
   constructor() {
     this.tasks = new Map();
     this.events = new Map();
+    this.repositoryContexts = new Map();
+    this.mcpConnections = new Map();
   }
 
   // Tasks
@@ -162,6 +182,73 @@ export class MemStorage implements IStorage {
     } as Settings;
     return this.settings;
   }
+
+  // Repository Contexts
+  async getRepositoryContext(repository: string): Promise<RepositoryContext | undefined> {
+    return this.repositoryContexts.get(repository);
+  }
+
+  async createRepositoryContext(insertContext: InsertRepositoryContext): Promise<RepositoryContext> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const context: RepositoryContext = {
+      ...insertContext,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.repositoryContexts.set(insertContext.repository, context);
+    return context;
+  }
+
+  async updateRepositoryContext(repository: string, updates: Partial<RepositoryContext>): Promise<RepositoryContext | undefined> {
+    const context = this.repositoryContexts.get(repository);
+    if (!context) return undefined;
+
+    const updatedContext = {
+      ...context,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.repositoryContexts.set(repository, updatedContext);
+    return updatedContext;
+  }
+
+  // MCP Connections
+  async getMCPConnection(id: string): Promise<MCPConnection | undefined> {
+    return this.mcpConnections.get(id);
+  }
+
+  async getAllMCPConnections(): Promise<MCPConnection[]> {
+    return Array.from(this.mcpConnections.values());
+  }
+
+  async createMCPConnection(insertConnection: InsertMCPConnection): Promise<MCPConnection> {
+    const id = randomUUID();
+    const connection: MCPConnection = {
+      ...insertConnection,
+      id,
+      createdAt: new Date().toISOString(),
+    };
+    this.mcpConnections.set(id, connection);
+    return connection;
+  }
+
+  async updateMCPConnection(id: string, updates: Partial<MCPConnection>): Promise<MCPConnection | undefined> {
+    const connection = this.mcpConnections.get(id);
+    if (!connection) return undefined;
+
+    const updatedConnection = {
+      ...connection,
+      ...updates,
+    };
+    this.mcpConnections.set(id, updatedConnection);
+    return updatedConnection;
+  }
+
+  async deleteMCPConnection(id: string): Promise<boolean> {
+    return this.mcpConnections.delete(id);
+  }
 }
 
-export const storage = new MemStorage();
+export { storage } from "./db-storage";

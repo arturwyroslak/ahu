@@ -1,0 +1,671 @@
+# GitHub Copilot Coding Agent - Zaawansowana Analiza Techniczna
+
+## Część 1: AI Provider Integration & Model Management
+
+### OpenAI Integration Stack
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│          COPILOT AGENT ↔ OPENAI API INTEGRATION            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Configuration Layer                                        │
+│  ├─ Model: gpt-4-turbo-preview                              │
+│  ├─ Context Window: 128,000 tokens                          │
+│  ├─ Temperature: 0.3 (code tasks), 0.7 (docs)              │
+│  ├─ Max Tokens: 128,000 output                              │
+│  ├─ API Version: 2024-02-15-preview                         │
+│  ├─ Timeout: 120 seconds per request                        │
+│  └─ Retry Policy: Exponential backoff (max 3 attempts)      │
+│                                                             │
+│  Azure OpenAI Support (Enterprise)                          │
+│  ├─ URL: ${AZURE_OPENAI_URL}                                │
+│  ├─ API Key: ${AZURE_OPENAI_API_KEY}                        │
+│  ├─ API Version: ${AZURE_OPENAI_API_VERSION}                │
+│  ├─ Key Vault URI: ${AZURE_OPENAI_KEY_VAULT_URI}            │
+│  └─ Auto-rotation: Enabled via Azure Key Vault              │
+│                                                             │
+│  System Prompts (Task-specific)                             │
+│  ├─ Code Generation Prompt:                                 │
+│  │  "You are a GitHub Copilot SWE agent. Your role: ..."   │
+│  │                                                          │
+│  ├─ Bug Fix Prompt:                                         │
+│  │  "Analyze the provided code for bugs and security..."    │
+│  │                                                          │
+│  ├─ Refactoring Prompt:                                     │
+│  │  "Refactor the code following SOLID principles..."       │
+│  │                                                          │
+│  └─ Documentation Prompt:                                   │
+│     "Generate comprehensive documentation..."              │
+│                                                             │
+│  Rate Limiting & Quotas                                     │
+│  ├─ Token Rate: 30,000 tokens/minute                        │
+│  ├─ Request Rate: 500 requests/minute                       │
+│  ├─ Per-session Limit: 128,000 tokens                       │
+│  └─ Quota Reset: Rolling 24-hour window                     │
+│                                                             │
+│  Error Handling & Fallback                                  │
+│  ├─ Rate Limit (429): Queue & retry later                   │
+│  ├─ Timeout (504): Exponential backoff                      │
+│  ├─ Invalid Request (400): Retry with sanitized input       │
+│  ├─ Provider Unavailable: Switch to Anthropic Claude        │
+│  └─ Token Overflow: Summarize context & retry               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Anthropic Claude Fallback Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│      COPILOT AGENT ↔ ANTHROPIC CLAUDE API INTEGRATION      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Configuration                                              │
+│  ├─ Model: claude-3-sonnet-20240229                         │
+│  ├─ Context Window: 200,000 tokens (extended)              │
+│  ├─ Temperature: 1.0 (default) - no override               │
+│  ├─ Safety Level: HIGH (Constitutional AI)                  │
+│  └─ Used for: Complex reasoning, large contexts             │
+│                                                             │
+│  Provider Selection Logic                                   │
+│  ├─ Primary: OpenAI (faster, optimal for code)              │
+│  ├─ Conditions for fallback to Claude:                      │
+│  │  ├─ OpenAI rate limited (429)                            │
+│  │  ├─ OpenAI timeout (>120s)                               │
+│  │  ├─ Task complexity > 0.8 threshold                      │
+│  │  └─ Context size > 90K tokens                            │
+│  ├─ Fallback Duration: 10 minutes or manual reset           │
+│  └─ Load Balancing: 70% OpenAI / 30% Claude                │
+│                                                             │
+│  Safety & Constitutional AI                                 │
+│  ├─ Prompt Injection Defense: Multi-layer validation        │
+│  ├─ Output Filtering: Suspicious code detection             │
+│  ├─ Data Exfiltration Detection: Pattern matching           │
+│  ├─ Malicious Patterns: Code injection & shell escape       │
+│  └─ Human Review: Automatic escalation for risky code       │
+│                                                             │
+│  Performance Characteristics                                │
+│  ├─ Avg Response Time: 8-12 seconds (vs 3-5s OpenAI)       │
+│  ├─ Token Efficiency: 20-30% higher tokens/task             │
+│  ├─ Accuracy: 92% vs 89% (complex reasoning)                │
+│  └─ Recommended: Long-running tasks, complex analysis       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Provider Performance Metrics
+
+```json
+{
+  "provider_comparison": {
+    "openai_gpt4_turbo": {
+      "avg_response_time_ms": 3500,
+      "tokens_per_hour": 1800000,
+      "code_generation_accuracy": 0.89,
+      "bug_detection_recall": 0.85,
+      "cost_per_1k_tokens": 0.015,
+      "preferred_use_cases": [
+        "Code generation",
+        "Bug fixing",
+        "Refactoring",
+        "Quick iterations"
+      ]
+    },
+    "anthropic_claude": {
+      "avg_response_time_ms": 8500,
+      "tokens_per_hour": 1200000,
+      "code_generation_accuracy": 0.87,
+      "complex_reasoning_accuracy": 0.92,
+      "cost_per_1k_tokens": 0.008,
+      "preferred_use_cases": [
+        "Complex architecture decisions",
+        "Large codebase analysis",
+        "Security review",
+        "Design patterns consultation"
+      ]
+    }
+  },
+  "smart_routing_algorithm": {
+    "decision_factors": [
+      {
+        "factor": "task_complexity",
+        "weight": 0.4,
+        "threshold": 0.7,
+        "action": "use_claude_if_exceeds"
+      },
+      {
+        "factor": "context_size_tokens",
+        "weight": 0.3,
+        "threshold": 90000,
+        "action": "use_claude_if_exceeds"
+      },
+      {
+        "factor": "openai_rate_limit_remaining",
+        "weight": 0.2,
+        "threshold": 0.2,
+        "action": "switch_to_claude_if_below"
+      },
+      {
+        "factor": "user_preference",
+        "weight": 0.1,
+        "threshold": null,
+        "action": "respect_explicit_choice"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Część 2: Deep Dive - Internal Agent Loop
+
+### Multi-iteration Decision Loop
+
+```
+ITERATION CYCLE (может повторяться 3-20 раз per task):
+
+┌──────────────────────────────────────────────────────────────┐
+│                    ITERATION START                           │
+└──────────────────────────────────────────────────────────────┘
+                           ↓
+
+┌──────────────────────────────────────────────────────────────┐
+│ PHASE 1: CONTEXT GATHERING & ANALYSIS                        │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│ Step 1.1: Read current state                                │
+│ ├─ Latest PR comments                                        │
+│ ├─ Current file modifications                                │
+│ ├─ Test results                                              │
+│ └─ Tool output from previous iteration                       │
+│                                                              │
+│ Step 1.2: Search for relevant code (RAG)                    │
+│ ├─ RAG Query: "authentication token expiration"             │
+│ ├─ Results: [file1.ts:127, file2.ts:45, ...]               │
+│ ├─ Context extraction: Surrounding 50 lines                 │
+│ └─ Semantic relevance scoring                                │
+│                                                              │
+│ Step 1.3: Construct context for AI                          │
+│ ├─ Task description                                          │
+│ ├─ Retrieved code snippets (top-k)                           │
+│ ├─ File structure overview                                   │
+│ ├─ Test suite information                                    │
+│ ├─ Previous iteration summary                                │
+│ └─ Feedback from user (if any)                               │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+                           ↓
+
+┌──────────────────────────────────────────────────────────────┐
+│ PHASE 2: AI REASONING & PLAN GENERATION                      │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│ Step 2.1: Send prompt to AI model                           │
+│ ├─ Provider: OpenAI / Claude (selected)                      │
+│ ├─ Temperature: 0.3 (deterministic)                         │
+│ ├─ Max tokens: 4,096 (planning phase)                       │
+│ └─ System prompt: Task-specific instructions                │
+│                                                              │
+│ Step 2.2: AI generates reasoning                            │
+│ ├─ Analyzes code structure                                   │
+│ ├─ Identifies root cause of issue                            │
+│ ├─ Plans implementation approach                             │
+│ ├─ Lists required file modifications                         │
+│ └─ Determines tool sequence needed                           │
+│                                                              │
+│ Step 2.3: Parse AI response                                 │
+│ ├─ Extract reasoning text                                    │
+│ ├─ Extract tool calls (structured JSON)                      │
+│ ├─ Validate tool parameters                                  │
+│ └─ Check for security red flags                              │
+│                                                              │
+│ Example AI reasoning output:                                 │
+│ "I need to fix the token expiration bug in auth.ts.         │
+│  The problem is at line 127 where the token refresh         │
+│  is not being called properly. I'll modify the code to...   │
+│                                                              │
+│  Tools I'll use:                                             │
+│  1. str_replace_based_edit (modify auth.ts)                 │
+│  2. bash_tool (run tests)                                   │
+│  3. git_tool (commit changes)"                              │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+                           ↓
+
+┌──────────────────────────────────────────────────────────────┐
+│ PHASE 3: TOOL EXECUTION                                      │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│ Loop through each tool in sequence:                          │
+│                                                              │
+│ Tool 1: str_replace_based_edit                              │
+│ ├─ Validate parameters (file exists, line numbers)          │
+│ ├─ Execute edit operation                                    │
+│ ├─ Capture result (success/error)                            │
+│ ├─ Verify file integrity                                     │
+│ └─ Log operation for audit trail                             │
+│                                                              │
+│ Tool 2: bash_tool (npm test)                                │
+│ ├─ Check firewall allows command                             │
+│ ├─ Set timeout (120s)                                        │
+│ ├─ Execute in isolated environment                           │
+│ ├─ Capture stdout/stderr/exit_code                           │
+│ └─ Parse test results                                        │
+│    ├─ 42 tests passed ✓                                      │
+│    ├─ 0 tests failed ✓                                       │
+│    └─ Coverage: 87% → 92% ✓                                  │
+│                                                              │
+│ Tool 3: git_tool (commit)                                   │
+│ ├─ Stage modified files                                      │
+│ ├─ Create commit message                                     │
+│ ├─ Sign commit (if enabled)                                  │
+│ └─ Push to remote branch                                     │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+                           ↓
+
+┌──────────────────────────────────────────────────────────────┐
+│ PHASE 4: RESULT EVALUATION & FEEDBACK GENERATION             │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│ Step 4.1: Evaluate tool outputs                             │
+│ ├─ All commands succeeded?                                   │
+│ ├─ Tests passing?                                            │
+│ ├─ No new errors introduced?                                 │
+│ └─ Coverage improved?                                        │
+│                                                              │
+│ Step 4.2: Determine next iteration                          │
+│ ├─ Success: Mark as complete                                 │
+│ ├─ Partial success: Plan next iteration                      │
+│ ├─ Failure: Error recovery strategy                          │
+│ └─ Check iteration limit (max 20)                            │
+│                                                              │
+│ Decision Logic:                                              │
+│ ├─ If all tests pass AND coverage ok:                        │
+│ │  └─ COMPLETE: Mark task finished, request review          │
+│ ├─ If tests fail:                                            │
+│ │  └─ CONTINUE: Analyze errors, plan fix                    │
+│ ├─ If file edit failed:                                      │
+│ │  └─ RETRY: Different approach with new prompt             │
+│ └─ If max iterations reached:                                │
+│    └─ ESCALATE: Flag for human review with details          │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+                           ↓
+
+┌──────────────────────────────────────────────────────────────┐
+│ PHASE 5: UPDATE & COMMUNICATION                              │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│ Step 5.1: Update PR body                                     │
+│ ├─ Append iteration log                                      │
+│ ├─ Update progress checklist                                 │
+│ ├─ Add AI reasoning explanation                              │
+│ └─ Timestamp all updates                                     │
+│                                                              │
+│ Step 5.2: Update session logs                                │
+│ ├─ Record tool invocations                                   │
+│ ├─ Track token usage                                         │
+│ ├─ Log timestamps                                            │
+│ └─ Store error information                                   │
+│                                                              │
+│ Step 5.3: Update Redis cache                                 │
+│ ├─ Session state (in-progress status)                        │
+│ ├─ Metrics (tokens, iterations)                              │
+│ ├─ Current context                                           │
+│ └─ TTL reset (59 min timeout)                               │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+                           ↓
+
+          Check: Iteration Complete & Success?
+          /                                    \
+       YES                                      NO
+        ↓                                        ↓
+  [TASK COMPLETE]              [Loop back to PHASE 1]
+   └─ Finalize PR                   (Iteration N+1)
+   └─ Request review
+   └─ Update status
+```
+
+---
+
+## Część 3: Security Deep Dive
+
+### eBPF Firewall Kernel Implementation
+
+```
+┌───────────────────────────────────────────────────────┐
+│           LINUX KERNEL SPACE (Ring 0)                 │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│  eBPF Programs (Compiled to bytecode)                 │
+│  ├─ Loaded via bpf() syscall                          │
+│  ├─ Verified by eBPF verifier (safety checks)        │
+│  ├─ JIT compiled to native machine code               │
+│  └─ Max ~4M instructions (safety limit)              │
+│                                                       │
+│  Network Hooks (XDP/TC)                               │
+│  ├─ XDP (eXpress Data Path): Earliest hook            │
+│  │  └─ Packet dropped before full processing          │
+│  ├─ TC (Traffic Control): Later in stack              │
+│  │  └─ More context available                         │
+│  └─ Syscall tracing for DNS/TLS                       │
+│                                                       │
+│  Rule Processing Pipeline                             │
+│  1. Packet arrives → XDP hook triggered               │
+│  2. Extract 5-tuple (src_ip, dst_ip, src_port,       │
+│     dst_port, protocol)                               │
+│  3. Lookup in BPF hash map (O(1) lookup)              │
+│  4. Extract SSL/TLS SNI from packet (deep inspection) │
+│  5. Validate against allowlist ruleset               │
+│  6. ALLOW / DROP decision                             │
+│                                                       │
+│  Performance Characteristics                          │
+│  ├─ Latency per packet: <10 microseconds              │
+│  ├─ Throughput: 10+ Gbps wire speed                   │
+│  ├─ Memory footprint: ~50MB (ruleset)                 │
+│  ├─ CPU overhead: <1% for normal traffic              │
+│  └─ Zero-copy processing                              │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+         ↑ BPF Maps (kernel ↔ userspace)
+         │
+┌───────────────────────────────────────────────────────┐
+│         USERSPACE (Ring 3)                            │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│  Firewall Control Plane                               │
+│  ├─ Load ruleset at startup                           │
+│  ├─ Monitor blocked connections                       │
+│  ├─ Update rules on-the-fly (via BPF maps)            │
+│  ├─ Collect statistics (dropped packets)              │
+│  └─ Log violations to JSON                            │
+│                                                       │
+│  Configuration Reloading                              │
+│  ├─ Read updated ruleset from environment var         │
+│  ├─ Decompress (gzip)                                 │
+│  ├─ Decode (base64)                                   │
+│  ├─ Parse JSON rules                                  │
+│  ├─ Update BPF hash maps                              │
+│  └─ No downtime (atomic updates)                      │
+│                                                       │
+│  Logging Pipeline                                     │
+│  ├─ Blocked connection → JSON event                   │
+│  ├─ Include: timestamp, src/dst, rule, reason         │
+│  ├─ Send to /home/runner/work/_temp/fw.jsonl          │
+│  ├─ Rate limited to prevent log spam                  │
+│  └─ Retention: Job duration only                      │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+```
+
+### TLS Certificate Validation Flow
+
+```
+HTTPS Connection Request from Copilot Agent:
+   ↓
+┌─────────────────────────────────────┐
+│ 1. DNS Lookup                       │
+│    ├─ Query: npm-registry.org       │
+│    ├─ Firewall checks: DNS query    │
+│    └─ Result: 151.101.x.x           │
+└─────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────┐
+│ 2. TCP Connect                      │
+│    ├─ Destination: 151.101.x.x:443  │
+│    ├─ Firewall checks: IP + port    │
+│    └─ Connection established        │
+└─────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────┐
+│ 3. TLS Handshake                    │
+│    ├─ ClientHello                   │
+│    │  ├─ SNI: npm-registry.org      │
+│    │  ├─ TLS Version: 1.3           │
+│    │  └─ Cipher suites              │
+│    ├─ ServerHello                   │
+│    │  └─ Certificate chain          │
+│    ├─ Key exchange                  │
+│    └─ Finished                      │
+└─────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────┐
+│ 4. Certificate Validation           │
+│    ├─ Extract certificate           │
+│    ├─ Check: Self-signed?           │
+│    │  └─ If yes: REJECT             │
+│    ├─ Check: Expiration date        │
+│    │  └─ If expired: REJECT         │
+│    ├─ Verify signature chain:       │
+│    │  ├─ Leaf cert signed by CA     │
+│    │  ├─ Intermediate by Root CA    │
+│    │  └─ Root in trusted store      │
+│    ├─ Check: CN/SAN matches domain  │
+│    │  └─ npm-registry.org == cert   │
+│    ├─ OCSP stapling check           │
+│    │  └─ Verify: certificate valid  │
+│    └─ CRL check (if required)       │
+│       └─ Download CRL from Digicert │
+│                                     │
+│ Result: CERTIFICATE VALID ✓         │
+└─────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────┐
+│ 5. Encrypted Communication          │
+│    └─ Firewall monitors SNI         │
+│       on each TLS record            │
+└─────────────────────────────────────┘
+   ↓
+HTTPS Request allowed ✓
+```
+
+---
+
+## Część 4: GitHub Integration Points
+
+### GitHub API Integration
+
+```
+GitHub Copilot Agent ↔ GitHub Platform
+
+1. ISSUE CONTEXT RETRIEVAL
+   GET /repos/{owner}/{repo}/issues/{issue_number}
+   ├─ Title
+   ├─ Body (task description)
+   ├─ Labels
+   ├─ Assignees
+   ├─ Related PRs
+   └─ Comments (discussion history)
+
+2. REPOSITORY METADATA
+   GET /repos/{owner}/{repo}
+   ├─ Language
+   ├─ Topics
+   ├─ Branch protection rules
+   ├─ Default branch
+   ├─ Visibility
+   └─ .editorconfig / .gitignore
+
+3. CODE SEARCH (RAG Implementation)
+   POST /graphql
+   query: search code using GitHub Code Search
+   ├─ Query: "authentication token"
+   ├─ Language filters
+   ├─ File type filters
+   └─ Return top-k results with context
+
+4. PULL REQUEST CREATION
+   POST /repos/{owner}/{repo}/pulls
+   ├─ title: "Copilot: Fix auth bug #42"
+   ├─ head: "copilot/fix-446c2c74"
+   ├─ base: "main"
+   ├─ body: Initial task description
+   ├─ draft: true (initially)
+   └─ labels: ["ai-generated", "review-needed"]
+
+5. COMMIT MANAGEMENT
+   POST /repos/{owner}/{repo}/git/refs
+   PUT /repos/{owner}/{repo}/git/refs/heads/{branch}
+   ├─ Create branch
+   ├─ Push commits
+   └─ Update branch reference
+
+6. PULL REQUEST UPDATES
+   PATCH /repos/{owner}/{repo}/pulls/{number}
+   ├─ Update body (with progress)
+   ├─ Change draft status
+   └─ Add review comments
+
+7. WORKFLOW TRIGGERING
+   POST /repos/{owner}/{repo}/dispatches
+   ├─ Trigger custom GitHub Actions workflows
+   ├─ Pass agent context as inputs
+   └─ Monitor workflow execution
+
+8. BRANCH PROTECTION
+   GET /repos/{owner}/{repo}/branches/{branch}/protection
+   ├─ Check required reviewers
+   ├─ Status checks required
+   ├─ Dismiss stale reviews setting
+   └─ Enforce branch protection rules
+```
+
+### PR Timeline Event Architecture
+
+```
+GitHub PR Timeline Shows:
+
+1. Initial Event: "🤖 Copilot started work..."
+   └─ Actor: copilot-swe-agent[bot] (User ID: 198982749)
+
+2. Commits appear in real-time
+   ├─ Author: copilot-swe-agent[bot]
+   ├─ Email: 198982749+Copilot@users.noreply.github.com
+   ├─ Commit message: Auto-generated
+   └─ Linked to session
+
+3. Comments from @copilot
+   ├─ Progress updates
+   ├─ Planning summary
+   ├─ Test results
+   └─ Final summary
+
+4. Status checks
+   ├─ CI/CD runs triggered
+   ├─ Status reported back
+   ├─ Coverage changes
+   └─ Lint results
+
+5. Final event: "✓ Ready for review"
+   └─ PR moved from DRAFT to READY status
+```
+
+---
+
+## Część 5: Performance & Scaling
+
+### Token Usage Optimization
+
+```
+Per-Task Token Budget: 128,000 tokens (standard)
+
+Breakdown:
+├─ Initial context: 15-20% (20K tokens)
+│  ├─ Issue description
+│  ├─ Repository metadata
+│  ├─ File structure overview
+│  └─ Custom instructions
+│
+├─ Per-iteration (avg):
+│  ├─ AI prompt: 5-8K tokens
+│  ├─ Code context (RAG results): 10-15K tokens
+│  ├─ AI response: 8-12K tokens
+│  └─ Tool execution feedback: 3-5K tokens
+│
+├─ Total per iteration: ~30-40K tokens
+├─ Estimated iterations: 3-4 (average)
+└─ Total consumed: ~90-120K tokens (within budget)
+```
+
+### Concurrent Session Management
+
+```
+GitHub Actions Parallelization:
+
+Max concurrent jobs: Varies by plan
+├─ GitHub Free: 1 concurrent job per workflow
+├─ GitHub Pro: 5 concurrent jobs
+├─ GitHub Business: 10 concurrent jobs
+└─ GitHub Enterprise: Custom limits
+
+Session Isolation:
+├─ Each job: Separate container
+├─ Each container: Separate filesystem
+├─ Resource limits: CPU, memory, network
+└─ Automatic cleanup on completion
+
+Queue Management:
+├─ Tasks assigned → Queue in GitHub
+├─ Runner picks up task based on availability
+├─ Estimated wait: 0-30 seconds
+└─ Status: "queued" or "running"
+```
+
+---
+
+## Część 6: Custom Agent Creation
+
+```yaml
+# Example: Custom Frontend Testing Agent
+
+name: Frontend Testing Agent
+description: Specialized for React component testing
+
+config:
+  model: gpt-4-turbo-preview
+  temperature: 0.3
+  custom_instructions: |
+    You are a frontend testing expert specializing in React.
+    
+    When assigned tasks:
+    1. Analyze React component structure (hooks, state, props)
+    2. Identify missing test cases
+    3. Generate tests using Jest + React Testing Library
+    4. Ensure accessibility testing
+    5. Add visual regression tests with Playwright
+    
+    Testing patterns to follow:
+    - Use userEvent for user interactions (not fireEvent)
+    - Test behavior, not implementation
+    - Include accessibility checks (a11y)
+    - Mock external APIs appropriately
+  
+  tools:
+    - name: react_component_analyzer
+      enabled: true
+    - name: jest_runner
+      enabled: true
+    - name: accessibility_checker
+      enabled: true
+  
+  mcp_servers:
+    - name: playwright-mcp
+      enabled: true
+    - name: testing-utils-mcp
+      enabled: true
+  
+  rate_limits:
+    max_tasks_per_day: 50
+    timeout_minutes: 45  # Shorter for tests
+  
+  approvers:
+    - team: frontend-leads
+    - count: 1
+
+# Usage:
+# @custom-frontend-agent Add tests for UserProfile component
+```

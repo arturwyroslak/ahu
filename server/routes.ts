@@ -3,10 +3,15 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { AIService } from "./services/ai";
 import { GitHubService } from "./services/github";
+import { RepositoryContextService } from "./services/repository-context";
+import { MCPClientManager } from "./services/mcp-client";
 import {
   insertTaskSchema,
   insertGithubEventSchema,
   settingsSchema,
+  mcpServerConfigSchema,
+  mcpToolExecutionRequestSchema,
+  insertMCPConnectionSchema,
   type LogEntry,
   type ReasoningStep,
 } from "@shared/schema";
@@ -17,15 +22,20 @@ const sseClients = new Map<string, Set<any>>();
 
 let aiService: AIService | null = null;
 let githubService: GitHubService | null = null;
+let repositoryContextService: RepositoryContextService | null = null;
+const mcpClientManager = new MCPClientManager();
 
 // Initialize services with settings if available
 async function initializeServices() {
   const settings = await storage.getSettings();
   if (settings?.ai) {
-    aiService = new AIService(settings.ai);
+    aiService = new AIService(settings.ai, storage);
   }
   if (settings?.github) {
     githubService = new GitHubService(settings.github);
+  }
+  if (githubService) {
+    repositoryContextService = new RepositoryContextService(storage, githubService, aiService || undefined);
   }
 }
 
@@ -146,6 +156,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(task);
   });
 
+  // === DIFF ENDPOINTS ===
+  app.get("/api/tasks/:id/diffs", async (req, res) => {
+    try {
+      const task = await storage.getTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task.diffs || []);
+    } catch (error: any) {
+      console.error("Error getting diffs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/tasks/:id/diffs/apply", async (req, res) => {
+    try {
+      const task = await storage.getTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      if (!githubService) {
+        return res.status(503).json({ error: "GitHub service not initialized. Please configure GitHub settings." });
+      }
+
+      if (!task.diffs || task.diffs.length === 0) {
+        return res.status(400).json({ error: "No diffs to apply for this task" });
+      }
+
+      const { repository, branch } = task;
+      const [owner, repo] = repository.split("/");
+
+      if (!owner || !repo) {
+        return res.status(400).json({ error: "Invalid repository format" });
+      }
+
+      const results = [];
+      for (const diff of task.diffs) {
+        try {
+          const currentContent = await githubService.getFileContent(owner, repo, diff.path, branch);
+          
+          if (aiService) {
+            const validation = await aiService.validateDiffSafety(diff, currentContent);
+            
+            if (!validation.safe) {
+              results.push({
+                path: diff.path,
+                success: false,
+                error: `Safety validation failed: ${validation.issues.join(", ")}`,
+                warnings: validation.warnings,
+              });
+              continue;
+            }
+          }
+
+          await addLog(task.id, "info", `Applying diff to ${diff.path}...`);
+          results.push({
+            path: diff.path,
+            success: true,
+            message: "Diff validated and ready to apply (actual GitHub commit not implemented)",
+          });
+        } catch (error: any) {
+          console.error(`Error applying diff for ${diff.path}:`, error);
+          results.push({
+            path: diff.path,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+
+      const allSuccessful = results.every((r) => r.success);
+      res.json({
+        success: allSuccessful,
+        results,
+        message: allSuccessful 
+          ? "All diffs validated successfully" 
+          : "Some diffs failed validation",
+      });
+    } catch (error: any) {
+      console.error("Error applying diffs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/tasks/:id/diffs/validate", async (req, res) => {
+    try {
+      const task = await storage.getTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      if (!githubService) {
+        return res.status(503).json({ error: "GitHub service not initialized." });
+      }
+
+      if (!task.diffs || task.diffs.length === 0) {
+        return res.status(400).json({ error: "No diffs to validate for this task" });
+      }
+
+      const { repository, branch } = task;
+      const [owner, repo] = repository.split("/");
+
+      if (!owner || !repo) {
+        return res.status(400).json({ error: "Invalid repository format" });
+      }
+
+      const validations = [];
+      for (const diff of task.diffs) {
+        try {
+          const currentContent = await githubService.getFileContent(owner, repo, diff.path, branch);
+          
+          let validation: { safe: boolean; issues: string[]; warnings: string[] } = { safe: true, issues: [], warnings: [] };
+          if (aiService) {
+            validation = await aiService.validateDiffSafety(diff, currentContent);
+          }
+
+          validations.push({
+            path: diff.path,
+            ...validation,
+          });
+        } catch (error: any) {
+          validations.push({
+            path: diff.path,
+            safe: false,
+            issues: [error.message],
+            warnings: [],
+          });
+        }
+      }
+
+      const allSafe = validations.every((v) => v.safe);
+      res.json({
+        safe: allSafe,
+        validations,
+      });
+    } catch (error: any) {
+      console.error("Error validating diffs:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/tasks/:id/diffs/:diffIndex/explain", async (req, res) => {
+    try {
+      const task = await storage.getTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      const diffIndex = parseInt(req.params.diffIndex, 10);
+      if (isNaN(diffIndex) || diffIndex < 0 || !task.diffs || diffIndex >= task.diffs.length) {
+        return res.status(400).json({ error: "Invalid diff index" });
+      }
+
+      const diff = task.diffs[diffIndex];
+
+      if (!aiService) {
+        return res.status(503).json({ error: "AI service not initialized." });
+      }
+
+      const explanation = await aiService.explainDiff(diff);
+      res.json(explanation);
+    } catch (error: any) {
+      console.error("Error explaining diff:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // === EVENTS ENDPOINTS ===
   app.get("/api/events", async (_req, res) => {
     const events = await storage.getAllEvents();
@@ -191,15 +369,337 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Reinitialize services with new settings
       if (settings.ai) {
-        aiService = new AIService(settings.ai);
+        aiService = new AIService(settings.ai, storage);
       }
       if (settings.github) {
         githubService = new GitHubService(settings.github);
+      }
+      if (githubService) {
+        repositoryContextService = new RepositoryContextService(storage, githubService, aiService || undefined);
       }
 
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // === AI PROVIDER ENDPOINTS ===
+  app.get("/api/ai/providers", async (_req, res) => {
+    try {
+      if (!aiService) {
+        return res.status(503).json({ error: "AI service not initialized. Please configure AI settings." });
+      }
+
+      const providerManager = aiService.getProviderManager();
+      if (!providerManager) {
+        return res.json([]);
+      }
+
+      const providers = providerManager.getProviders();
+      res.json(providers);
+    } catch (error: any) {
+      console.error("Error getting providers:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ai/metrics", async (_req, res) => {
+    try {
+      if (!aiService) {
+        return res.status(503).json({ error: "AI service not initialized. Please configure AI settings." });
+      }
+
+      const providerManager = aiService.getProviderManager();
+      if (!providerManager) {
+        return res.json([]);
+      }
+
+      const metrics = providerManager.getMetrics();
+      res.json(metrics);
+    } catch (error: any) {
+      console.error("Error getting metrics:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/providers/:name/test", async (req, res) => {
+    try {
+      const { name } = req.params;
+
+      if (!aiService) {
+        return res.status(503).json({ error: "AI service not initialized. Please configure AI settings." });
+      }
+
+      const providerManager = aiService.getProviderManager();
+      if (!providerManager) {
+        return res.status(503).json({ error: "No providers configured" });
+      }
+
+      const result = await providerManager.testProvider(name);
+      res.json(result);
+    } catch (error: any) {
+      console.error(`Error testing provider ${req.params.name}:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // === REPOSITORY CONTEXT ENDPOINTS ===
+  app.get("/api/repositories/:owner/:repo/context", async (req, res) => {
+    try {
+      const { owner, repo } = req.params;
+      const repository = `${owner}/${repo}`;
+
+      if (!repositoryContextService) {
+        return res.status(503).json({ error: "Repository context service not initialized. Please configure GitHub settings." });
+      }
+
+      const context = await repositoryContextService.getOrCreateContext(repository);
+      res.json(context);
+    } catch (error: any) {
+      console.error("Error getting repository context:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/repositories/:owner/:repo/context/refresh", async (req, res) => {
+    try {
+      const { owner, repo } = req.params;
+      const repository = `${owner}/${repo}`;
+
+      if (!repositoryContextService) {
+        return res.status(503).json({ error: "Repository context service not initialized. Please configure GitHub settings." });
+      }
+
+      const context = await repositoryContextService.refreshContext(repository);
+      res.json(context);
+    } catch (error: any) {
+      console.error("Error refreshing repository context:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/repositories/:owner/:repo/context/summary", async (req, res) => {
+    try {
+      const { owner, repo } = req.params;
+      const repository = `${owner}/${repo}`;
+
+      if (!repositoryContextService) {
+        return res.status(503).json({ error: "Repository context service not initialized. Please configure GitHub settings." });
+      }
+
+      const summary = await repositoryContextService.getSemanticSummary(repository);
+      res.json({ summary });
+    } catch (error: any) {
+      console.error("Error getting semantic summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // === MCP SERVER ENDPOINTS ===
+  app.post("/api/mcp/servers", async (req, res) => {
+    try {
+      const serverConfig = mcpServerConfigSchema.parse(req.body);
+
+      const connection = await storage.createMCPConnection({
+        type: serverConfig.type,
+        name: serverConfig.name,
+        config: serverConfig as any,
+        status: "initializing",
+      });
+
+      try {
+        const client = await mcpClientManager.createClient(connection.id, serverConfig);
+        
+        await storage.updateMCPConnection(connection.id, {
+          status: "connected",
+          lastUsed: new Date().toISOString(),
+        });
+
+        res.json({
+          ...connection,
+          status: "connected",
+          capabilities: client.getCapabilities(),
+        });
+      } catch (error: any) {
+        await storage.updateMCPConnection(connection.id, {
+          status: "error",
+        });
+        
+        throw error;
+      }
+    } catch (error: any) {
+      console.error("Error creating MCP server:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/mcp/servers", async (_req, res) => {
+    try {
+      const connections = await storage.getAllMCPConnections();
+      
+      const connectionsWithStatus = connections.map((conn) => {
+        const client = mcpClientManager.getClient(conn.id);
+        return {
+          ...conn,
+          initialized: client?.isInitialized() || false,
+          capabilities: client?.getCapabilities(),
+        };
+      });
+
+      res.json(connectionsWithStatus);
+    } catch (error: any) {
+      console.error("Error listing MCP servers:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/mcp/servers/:id", async (req, res) => {
+    try {
+      const connection = await storage.getMCPConnection(req.params.id);
+      if (!connection) {
+        return res.status(404).json({ error: "MCP server not found" });
+      }
+
+      const client = mcpClientManager.getClient(connection.id);
+      
+      res.json({
+        ...connection,
+        initialized: client?.isInitialized() || false,
+        capabilities: client?.getCapabilities(),
+      });
+    } catch (error: any) {
+      console.error("Error getting MCP server:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/mcp/servers/:id/tools", async (req, res) => {
+    try {
+      const connection = await storage.getMCPConnection(req.params.id);
+      if (!connection) {
+        return res.status(404).json({ error: "MCP server not found" });
+      }
+
+      const client = mcpClientManager.getClient(connection.id);
+      if (!client) {
+        return res.status(503).json({ error: "MCP server not initialized" });
+      }
+
+      const tools = await client.listTools();
+      
+      await storage.updateMCPConnection(connection.id, {
+        lastUsed: new Date().toISOString(),
+      });
+
+      res.json({ tools });
+    } catch (error: any) {
+      console.error("Error listing MCP tools:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/mcp/servers/:id/tools/:toolName", async (req, res) => {
+    try {
+      const { id, toolName } = req.params;
+      
+      const connection = await storage.getMCPConnection(id);
+      if (!connection) {
+        return res.status(404).json({ error: "MCP server not found" });
+      }
+
+      const client = mcpClientManager.getClient(id);
+      if (!client) {
+        return res.status(503).json({ error: "MCP server not initialized" });
+      }
+
+      const executionRequest = mcpToolExecutionRequestSchema.parse({
+        toolName,
+        params: req.body,
+      });
+
+      const result = await client.callTool(executionRequest.toolName, executionRequest.params);
+
+      await storage.updateMCPConnection(id, {
+        lastUsed: new Date().toISOString(),
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error executing MCP tool:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/mcp/servers/:id/resources", async (req, res) => {
+    try {
+      const connection = await storage.getMCPConnection(req.params.id);
+      if (!connection) {
+        return res.status(404).json({ error: "MCP server not found" });
+      }
+
+      const client = mcpClientManager.getClient(connection.id);
+      if (!client) {
+        return res.status(503).json({ error: "MCP server not initialized" });
+      }
+
+      const resources = await client.getResources();
+
+      await storage.updateMCPConnection(connection.id, {
+        lastUsed: new Date().toISOString(),
+      });
+
+      res.json({ resources });
+    } catch (error: any) {
+      console.error("Error listing MCP resources:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/mcp/servers/:id/prompts", async (req, res) => {
+    try {
+      const connection = await storage.getMCPConnection(req.params.id);
+      if (!connection) {
+        return res.status(404).json({ error: "MCP server not found" });
+      }
+
+      const client = mcpClientManager.getClient(connection.id);
+      if (!client) {
+        return res.status(503).json({ error: "MCP server not initialized" });
+      }
+
+      const prompts = await client.getPromptTemplates();
+
+      await storage.updateMCPConnection(connection.id, {
+        lastUsed: new Date().toISOString(),
+      });
+
+      res.json({ prompts });
+    } catch (error: any) {
+      console.error("Error listing MCP prompts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/mcp/servers/:id", async (req, res) => {
+    try {
+      const connection = await storage.getMCPConnection(req.params.id);
+      if (!connection) {
+        return res.status(404).json({ error: "MCP server not found" });
+      }
+
+      await mcpClientManager.closeClient(connection.id);
+      
+      const deleted = await storage.deleteMCPConnection(connection.id);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Failed to delete MCP server" });
+      }
+
+      res.json({ success: true, message: "MCP server deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting MCP server:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

@@ -1,0 +1,1156 @@
+# GitHub Copilot Coding Agent - Szczegółowa Analiza Architektury
+
+## Spis treści
+1. [Przegląd systemu](#przegląd-systemu)
+2. [Architektura aplikacji](#architektura-aplikacji)
+3. [Model Context Protocol (MCP)](#model-context-protocol-mcp)
+4. [GitHub Actions Runtime](#github-actions-runtime)
+5. [Interfejs użytkownika](#interfejs-użytkownika)
+6. [Bezpieczeństwo i Firewall](#bezpieczeństwo-i-firewall)
+7. [Przepływ danych i komunikacja](#przepływ-danych-i-komunikacja)
+8. [Narzędzia agenta](#narzędzia-agenta)
+9. [Monitoring i śledzenie sesji](#monitoring-i-śledzenie-sesji)
+10. [Integracja z GitHub Actions](#integracja-z-github-actions)
+
+---
+
+## Przegląd systemu
+
+### Czym jest GitHub Copilot Coding Agent?
+
+GitHub Copilot Coding Agent to **autonomiczny AI deweloper**, który działa w tle na serwerach GitHub, wspierając zespoły developerskie w wykonywaniu zadań programistycznych. W przeciwieństwie do zwykłego Copilot Chat (który działa w edytorze), Coding Agent to w pełni autonomiczny system działający w dedykowanym środowisku o izolacji, zasilanym przez GitHub Actions.
+
+### Kluczowe cechy architektury:
+
+| Cecha | Opis |
+|-------|------|
+| **Autonomia** | Agent pracuje niezależnie, podejmując decyzje o tym, które pliki edytować, jakie komendy uruchamiać |
+| **Izolacja** | Każde zadanie uruchamiane w efemerycznym, stworzonym na żądanie kontenerze GitHub Actions |
+| **Transparency** | Wszystkie działania agenta są widoczne w pull request'ach, timeline'ach i session logach |
+| **Iteratywność** | Agent może odpowiadać na feedback w PR i iteracyjnie doskonalić rozwiązanie |
+| **Kontrola** | Człowiek zawsze pozostaje w kontroli - alle zmiany wymagają human approval |
+
+---
+
+## Architektura aplikacji
+
+### 1. Warstwa Prezentacji - Interfejs Użytkownika
+
+#### **Agents Panel** (Główny interfejs)
+```
+Wszystkie strony GitHub.com
+          ↓
+[Przycisk Agents w navigation bar]
+          ↓
+┌─────────────────────────────────────┐
+│         AGENTS PANEL (Overlay)      │
+├─────────────────────────────────────┤
+│ 📝 Nowe zadanie (input prompt)       │
+│ 👀 Trwające zadania (real-time)      │
+│ ✓ Ukończone zadania                 │
+│ 🔗 Linki do pull requestów           │
+└─────────────────────────────────────┘
+          ↓
+[View All / Full Screen Mode]
+     github.com/copilot/agents
+```
+
+**Możliwości Agents Panel:**
+- Przypisanie nowego zadania bez opuszczania bieżącej pracy
+- Monitorowanie statusu w real-time
+- Szybki dostęp do pull requestów do przeglądu
+- Równoległa obsługa wielu zadań
+
+#### **Punkty wejścia do tasków:**
+1. **GitHub Issues**: Przypisanie issue do `@copilot`
+2. **Pull Request Comments**: Mention `@copilot` w komentarzu
+3. **Agents Panel**: Bezpośrednie delegowanie z overlay
+4. **VS Code**: Integracja z GitHub Pull Requests extension
+5. **GitHub CLI**: `gh agent-task create`
+6. **Raycast**: Custom integration
+7. **MCP-enabled tools**: Dowolne narzędzie wspierające MCP
+
+### 2. Warstwa Logiki - Core Agent Engine
+
+```
+┌─────────────────────────────────────────────────────────┐
+│           COPILOT CODING AGENT CORE ENGINE              │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Task Input Parser                                      │
+│  ├─ Issue/PR context extraction                         │
+│  ├─ Custom instructions parsing                         │
+│  └─ Repository metadata collection                      │
+│                                                         │
+│  Context Analyzer                                       │
+│  ├─ RAG-powered code search (GitHub RAG)               │
+│  ├─ Codebase structure analysis                         │
+│  ├─ File dependency mapping                             │
+│  └─ Test suite discovery                                │
+│                                                         │
+│  Decision Engine (Multi-step Loop)                      │
+│  ├─ Plan generation                                     │
+│  ├─ Tool selection (bash, file editor, git, etc.)       │
+│  ├─ Implementation execution                            │
+│  └─ Feedback iteration                                  │
+│                                                         │
+│  AI Provider Orchestration                              │
+│  ├─ OpenAI (gpt-4-turbo-preview) - Primary              │
+│  ├─ Anthropic Claude (fallback)                         │
+│  └─ Provider selection logic                            │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 3. Warstwa Danych - Session Management
+
+```
+Session State Storage
+    ↓
+┌─────────────────────────────────────┐
+│  Redis Cluster (Session Cache)      │
+│  ├─ Active sessions                 │
+│  ├─ Session metadata                │
+│  ├─ Tool execution history          │
+│  └─ TTL: Session timeout            │
+└─────────────────────────────────────┘
+    ↓
+GitHub Persistent Storage
+    ├─ Pull request body (plan)
+    ├─ PR timeline (events)
+    ├─ Commit history
+    └─ Session logs (JSON format)
+```
+
+---
+
+## Model Context Protocol (MCP)
+
+### Architektura MCP w kontekście Copilot Agent
+
+MCP to protokół komunikacyjny standaryzowany przez Anthropic, umożliwiający AI agentom dostęp do zewnętrznych narzędzi i zasobów bez konieczności zmian kodu core'owego agenta.
+
+```
+┌─────────────────────────────────────────────────────┐
+│     COPILOT CODING AGENT                            │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  MCP Client Layer                                   │
+│  ├─ MCP Protocol Handler                           │
+│  ├─ Tool Registry                                  │
+│  ├─ Resource Manager                               │
+│  └─ Prompt Templates Handler                       │
+│                       │                            │
+│        ┌──────────────┼──────────────┐             │
+│        │              │              │             │
+│        ↓              ↓              ↓             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐         │
+│  │Playwright│  │ GitHub   │  │  Custom  │         │
+│  │   MCP    │  │   MCP    │  │   MCP    │         │
+│  │ Server   │  │ Server   │  │ Servers  │         │
+│  │(47 tools)│  │(47 tools)│  │          │         │
+│  └──────────┘  └──────────┘  └──────────┘         │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Narzędzia dostępne przez MCP:
+
+#### **Playwright MCP Server**
+- Browser automation
+- Visual testing
+- Screenshot capture
+- DOM interaction
+- E2E test execution
+
+#### **GitHub MCP Server** (47 endpoints)
+- Repository operations
+- Pull request management
+- Issue manipulation
+- Branch operations
+- Workflow triggering
+
+#### **Custom MCP Servers**
+- Proprietary integrations
+- External APIs
+- Domain-specific tools
+- Third-party services
+
+### Konfiguracja MCP w repozytorium:
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "github-mcp",
+      "type": "github",
+      "config": {
+        "baseUrl": "https://api.github.com",
+        "token": "${GITHUB_TOKEN}"
+      }
+    },
+    {
+      "name": "playwright-mcp",
+      "type": "custom",
+      "command": "node",
+      "args": ["./node_modules/playwright-mcp/dist/index.js"]
+    }
+  ],
+  "mcpEnabled": true
+}
+```
+
+---
+
+## GitHub Actions Runtime
+
+### ArchitekturaExecutionu
+
+Gdy task jest przypisany Copilotowi, system wykonuje następujące kroki:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     TASK ASSIGNMENT                         │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│  1. BRANCH CREATION                                         │
+│  Branch Name: copilot/{action-type}-{uuid}                 │
+│  Example: copilot/fix-446c2c74-ca1b-48a8-a1a8-e608ccb59dea │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│  2. PULL REQUEST CREATION                                   │
+│  Status: DRAFT                                              │
+│  Title: Auto-generated from task                            │
+│  Body: Task description + Plan section (to be updated)      │
+│  Linked: To original GitHub Issue/Prompt                    │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│  3. GITHUB ACTIONS EPHEMERAL ENVIRONMENT SPINUP             │
+│  Location: GitHub-hosted runner                            │
+│  Image: ubuntu24 (20250818.1.0)                             │
+│  Specs: Configurable (default sufficient)                   │
+│  Network: Firewalled, controlled internet access            │
+│  Lifetime: Duration of job + cleanup (59 min timeout)      │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│  4. ENVIRONMENT CONFIGURATION                               │
+│  ├─ Repository clone                                        │
+│  ├─ Dependencies installation                               │
+│  ├─ Custom setup scripts execution                          │
+│  ├─ Tools availability verification                         │
+│  └─ AI provider credentials configuration                   │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│  5. AGENT EXECUTION LOOP (Multi-iteration)                  │
+│                                                             │
+│  Loop Iteration [1..N]:                                     │
+│  ├─ Context Analysis                                        │
+│  ├─ Plan Generation                                         │
+│  ├─ Tool Invocation                                         │
+│  ├─ Result Evaluation                                       │
+│  ├─ Feedback Processing                                     │
+│  └─ Next Step Determination                                 │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│  6. PULL REQUEST UPDATE & FINALIZATION                      │
+│  ├─ Final commits pushed                                    │
+│  ├─ PR status changed from DRAFT to READY FOR REVIEW        │
+│  ├─ PR body updated with final summary                      │
+│  └─ Session marked as complete                              │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│  7. HUMAN REVIEW & ITERATION (if needed)                    │
+│  ├─ Developer reviews changes                               │
+│  ├─ Developer leaves comment with feedback                  │
+│  ├─ Agent detects mention @copilot in comment               │
+│  ├─ New iteration starts (back to step 5)                   │
+│  └─ Or: Manual merge if changes approved                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Runner Environment Variables
+
+Podczas wykonywania zadania, agent ma dostęp do specjalnych zmiennych środowiskowych:
+
+```bash
+# Task Identification
+COPILOT_AGENT_ACTION="fix"                              # Type of action
+COPILOT_AGENT_ISSUE_NUMBER="42"                         # Linked issue
+COPILOT_AGENT_PR_NUMBER="1"                             # Working PR
+COPILOT_AGENT_PR_COMMIT_COUNT="5"                       # Commits in PR
+
+# Session Management
+COPILOT_AGENT_START_TIME_SEC="1755803221"               # Unix timestamp
+COPILOT_AGENT_TIMEOUT_MIN="59"                          # Session timeout
+COPILOT_USE_SESSIONS="true"                             # Sessions enabled
+
+# Branch & Identity
+COPILOT_AGENT_BRANCH_NAME="copilot/fix-446c2c74..."    # Working branch
+COPILOT_AGENT_COMMIT_LOGIN="copilot-swe-agent[bot]"    # Git identity
+COPILOT_AGENT_COMMIT_EMAIL="198982749+Copilot@..."     # Email for commits
+
+# Network & Security
+COPILOT_AGENT_CALLBACK_URL="https://api.githubcopilot.com/agents/swe/agent"
+COPILOT_API_URL="https://api.githubcopilot.com"
+COPILOT_AGENT_FIREWALL_ENABLE_RULESET_ALLOW_LIST="true"
+COPILOT_AGENT_FIREWALL_RULESET="[base64-encoded gzip rules]"
+COPILOT_AGENT_CONTENT_FILTER_MODE="hidden_characters"
+
+# Feature Flags
+COPILOT_FEATURE_FLAGS="copilot_swe_agent_firewall_enabled_by_default,copilot_swe_agent_vision,..."
+COPILOT_AGENT_DEBUG="false"                             # Debug mode
+COPILOT_AGENT_ONLINE_EVALUATION_DISABLED="false"       # Evaluation active
+
+# Integration
+COPILOT_MCP_ENABLED="true"                              # MCP support
+COPILOT_AGENT_MCP_SERVER_TEMP="/tmp/mcp-server"         # MCP temp dir
+
+# Environment Type
+COPILOT_AGENT_SOURCE_ENVIRONMENT="production"           # Prod/staging/dev
+```
+
+---
+
+## Interfejs użytkownika
+
+### 1. Agents Panel - Szczegółowa Analiza
+
+**Lokalizacja**: Dostępny ze każdej strony GitHub.com
+
+**Komponenty**:
+
+```
+┌────────────────────────────────────────────────┐
+│         AGENTS PANEL (880px width)             │
+├────────────────────────────────────────────────┤
+│ 🔍 [Search/Filter Tasks]                       │
+│                                                 │
+│ ┌─────────────────────────────────────────┐   │
+│ │ STATUS: Running                         │   │
+│ │ 🕐 Task: "Add unit tests for Auth"      │   │
+│ │ 📊 Progress: 45% (ETA: 2 min)           │   │
+│ │ 📌 Repo: arturwyroslak/neew              │   │
+│ │ [View PR]                                │   │
+│ └─────────────────────────────────────────┘   │
+│                                                 │
+│ ┌─────────────────────────────────────────┐   │
+│ │ STATUS: Completed                       │   │
+│ │ ✓ Task: "Fix auth bug #42"              │   │
+│ │ ⏱️  Time: 5m 32s                         │   │
+│ │ 📌 Repo: organization/repo               │   │
+│ │ [View PR] [Details]                     │   │
+│ └─────────────────────────────────────────┘   │
+│                                                 │
+│ [+ New Task] [View All]                        │
+└────────────────────────────────────────────────┘
+```
+
+### 2. Task Creation Interface
+
+```
+Dialog: Create New Task
+┌─────────────────────────────────────────┐
+│ Task Description (required)             │
+│ ┌─────────────────────────────────────┐ │
+│ │ "Add dark mode support to the       │ │
+│ │  settings page. Use React hooks    │ │
+│ │  for state management."            │ │
+│ └─────────────────────────────────────┘ │
+│                                         │
+│ Repository Selection:                   │
+│ ├─ [Recent repos dropdown]              │
+│ ├─ Currently: arturwyroslak/neew        │
+│ │ (or search for repo)                 │
+│                                         │
+│ Additional Context:                     │
+│ □ Link PR/Issue (#42)                   │
+│ □ Attach files                          │
+│ □ Custom instructions                   │
+│                                         │
+│ [Cancel] [Create Task]                  │
+└─────────────────────────────────────────┘
+```
+
+### 3. Pull Request Timeline
+
+Agent generuje PR z specjalnym struktur ą timeline'u:
+
+```
+Pull Request: copilot/fix-446c2c74...
+Status: DRAFT → READY FOR REVIEW
+
+Timeline Events:
+────────────────────────────────────────────
+
+Event 1: 🤖 "Copilot started work..."
+Time: 2025-10-31 13:24:15
+├─ [View Session] ← Link to detailed logs
+└─ Session started (timeout: 59 min)
+
+Event 2: 📋 "Planning phase..."
+├─ Step 1: Analyze issue context
+├─ Step 2: Search related files
+├─ Step 3: Create implementation plan
+└─ [Expand]
+
+Event 3: 💻 "Implementing changes..."
+├─ Modified: src/auth.ts (+15, -8)
+├─ Modified: src/components/AuthForm.tsx (+25, -12)
+├─ Created: tests/auth.test.ts (NEW)
+└─ [Review Diff]
+
+Event 4: ✓ "Tests passing..."
+├─ Unit tests: 42/42 passed
+├─ Linter: No issues
+├─ Build: SUCCESS
+└─ Coverage: 87% → 92%
+
+Event 5: 📝 "Updating PR..."
+├─ Adding summary
+├─ Marking as ready for review
+└─ Status: READY FOR REVIEW
+
+────────────────────────────────────────────
+PR Body:
+═════════════════════════════════════════════
+
+## Copilot Implementation Plan
+
+### Task
+Fix authentication bug in user login flow (Issue #42)
+
+### Plan
+- [x] Analyze current auth implementation
+- [x] Identify bug root cause
+- [x] Create fix in auth.ts
+- [x] Add comprehensive tests
+- [x] Update documentation
+- [x] Validate all tests pass
+
+### Changes Made
+1. **auth.ts**: Fixed token expiration handling
+2. **AuthForm.tsx**: Added error boundary
+3. **tests/auth.test.ts**: Added 12 new test cases
+
+### Testing
+- All existing tests: ✓ PASSING
+- New tests: ✓ PASSING
+- Coverage change: 85% → 92%
+
+### Deployment Notes
+Recommend merging to `develop` branch before release
+```
+
+### 4. Session Logs View
+
+```
+Session View (github.com/copilot/agents/{sessionId})
+┌──────────────────────────────────────────────┐
+│ Session: copilot-swe-agent-2025-10-31-13:24  │
+│ Status: IN PROGRESS                          │
+│                                              │
+│ Statistics:                                  │
+│ ├─ Time elapsed: 3m 42s                      │
+│ ├─ Tools used: 47                            │
+│ ├─ Files modified: 6                         │
+│ ├─ Tokens used: 12,847 / 128,000             │
+│ └─ Confidence score: 87%                     │
+│                                              │
+│ Detailed Log (Real-time stream):             │
+│                                              │
+│ [13:24:15] Analyzing repository structure    │
+│ [13:24:18] Found 127 TypeScript files        │
+│ [13:24:22] Executing RAG search for context  │
+│ [13:24:28] Identified 3 relevant files       │
+│ [13:24:32] Planning implementation approach  │
+│ [13:24:45] Using tool: read_file             │
+│           └─ file: src/auth.ts               │
+│ [13:24:47] Using tool: search_code           │
+│           └─ query: "token expiration"       │
+│ [13:24:52] AI reasoning: Found bug in line 127
+│ [13:24:55] Using tool: str_replace_based_edit
+│           └─ file: src/auth.ts               │
+│           └─ from: (lines 125-130)           │
+│           └─ to: (lines 125-132)             │
+│ [13:25:02] Using tool: bash_terminal         │
+│           └─ cmd: npm test                   │
+│           └─ output: 42 passed, 0 failed     │
+│                                              │
+│ [View More] [Download Log]                   │
+└──────────────────────────────────────────────┘
+```
+
+---
+
+## Bezpieczeństwo i Firewall
+
+### eBPF Firewall Architecture
+
+Copilot Agent posiada zaawansowany firewall bazujący na eBPF (extended Berkeley Packet Filter), działający na poziomie kernel:
+
+```
+┌────────────────────────────────────────────────────┐
+│              KERNEL SPACE (eBPF Programs)         │
+├────────────────────────────────────────────────────┤
+│                                                    │
+│  Network Packet Inspection                         │
+│  ├─ Real-time packet filtering                     │
+│  ├─ SSL/TLS certificate validation                 │
+│  ├─ OCSP/CRL checking                              │
+│  └─ Malicious domain detection                     │
+│                                                    │
+│  Security Rules Engine                             │
+│  ├─ Domain allowlisting (192MB base64 ruleset)    │
+│  ├─ Path-based URL filtering                       │
+│  ├─ HTTPS enforcement                              │
+│  └─ Real-time threat detection                     │
+│                                                    │
+│  Monitoring & Alerts                               │
+│  ├─ Network activity logging (JSON)                │
+│  ├─ Suspicious access detection                    │
+│  └─ PagerDuty integration for incidents            │
+│                                                    │
+└────────────────────────────────────────────────────┘
+     ↓ (syscall interception)
+┌────────────────────────────────────────────────────┐
+│           COPILOT AGENT EXECUTION ENVIRONMENT      │
+├────────────────────────────────────────────────────┤
+│  Bash Tool / File Editor / Git Operations          │
+│  (Commands passed through firewall checks)         │
+└────────────────────────────────────────────────────┘
+```
+
+### Firewall Ruleset - Domeny zezwolone
+
+**Default Allow List** (dekompresowany z 192MB gzip base64):
+
+```yaml
+# GitHub Infrastructure
+- domain: github.com
+  allow_subdomains: true
+  scheme: https
+  
+- domain: githubusercontent.com
+  allow_subdomains: true
+  scheme: https
+
+- domain: uploads.github.com
+  paths:
+    - /copilot/chat/attachments/
+  scheme: https
+
+# Container Registries
+- domain: ghcr.io
+  scheme: https
+  
+- domain: docker.io
+  allow_subdomains: true
+  scheme: https
+
+# Package Managers
+- domain: registry.npmjs.org
+  scheme: https
+  
+- domain: registry.yarn.io
+  scheme: https
+  
+- domain: pypi.org
+  scheme: https
+  
+- domain: proxy.golang.org
+  scheme: https
+
+# Certificate Authorities
+- domain: crl3.digicert.com
+  scheme: https
+  
+- domain: ocsp.digicert.com
+  scheme: https
+
+# Azure Infrastructure (if configured)
+- ip: 168.63.129.16  # Azure metadata service
+  strict_ip_match: true
+```
+
+### Customizable Firewall Configuration
+
+Administratorzy mogą rozszerzyć/zmienić allowlist:
+
+```
+GitHub Settings → Copilot → Coding Agent → Firewall Settings
+
+Custom Allow List:
+├─ https://packages.contoso.corp/project-1/
+├─ npm-registry.mycompany.internal
+├─ api.service.mycompany.com
+└─ [+ Add Rule]
+
+Allow List Strategy:
+○ Recommended (default)
+● Custom
+○ Disabled (⚠️ not recommended)
+```
+
+### Firewall Limitations i Security Model
+
+1. **Only applies to agent-initiated processes**: MCP servers i Copilot setup steps not affected
+2. **Only within GitHub Actions**: Desktop execution not covered
+3. **Bypass potential**: Sophisticated attacks może bypass firewall
+
+**Mitigation Strategy**:
+- Layer defense z branch protections
+- Code review requirements
+- CI/CD validation gates
+- Audit logging wszystkich operacji
+
+---
+
+## Przepływ danych i komunikacja
+
+### Network Communication Stack
+
+```
+┌──────────────────────────────────────────────────────┐
+│             COPILOT AGENT (GitHub Actions)           │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  Application Layer                                   │
+│  ├─ Agent Core (Node.js process)                     │
+│  ├─ Session Manager                                  │
+│  └─ Tool Orchestrator                                │
+│           ↓                                           │
+│  Protocol Layer (JSON-RPC 2.0 + extensions)          │
+│  ├─ WebSocket over TLS 1.3                           │
+│  ├─ HTTP/2 fallback                                  │
+│  └─ Automatic reconnection (exponential backoff)     │
+│           ↓                                           │
+│  Security Layer                                      │
+│  ├─ OAuth2 token authentication                      │
+│  ├─ HMAC signature validation                        │
+│  ├─ 30-second heartbeat ping/pong                    │
+│  └─ gzip compression                                 │
+│           ↓                                           │
+│  Transport Layer                                     │
+│  ├─ Network interface (eth0)                         │
+│  ├─ eBPF Firewall inspection                         │
+│  └─ TLS 1.3 encryption                               │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+          ↓ (HTTPS/WSS)
+┌──────────────────────────────────────────────────────┐
+│      GITHUB COPILOT API (api.githubcopilot.com)      │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  Copilot API Endpoints:                              │
+│  ├─ POST /agents/swe/agent/jobs                      │
+│  ├─ GET /agents/swe/agent/sessions/{id}              │
+│  ├─ POST /agents/swe/agent/callbacks                 │
+│  └─ [47 additional endpoints]                        │
+│                                                      │
+│  AI Provider Routing:                                │
+│  ├─ OpenAI (GPT-4 Turbo) [Primary]                   │
+│  └─ Anthropic Claude [Fallback]                      │
+│                                                      │
+│  Rate Limiting:                                      │
+│  ├─ 5,000 req/hour (standard users)                  │
+│  ├─ 500 req/hour (enterprise tier)                   │
+│  └─ Token limits: 30K tokens/minute                  │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+          ↓
+┌──────────────────────────────────────────────────────┐
+│         EXTERNAL AI MODELS & SERVICES                │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  OpenAI API                                          │
+│  ├─ Model: gpt-4-turbo-preview                       │
+│  ├─ Context window: 128K tokens                      │
+│  ├─ Temperature: 0.3 (code), 0.7 (docs)              │
+│  └─ API v2024-02-15-preview                          │
+│                                                      │
+│  Anthropic API                                       │
+│  ├─ Model: claude-3-sonnet-20240229                  │
+│  ├─ Context window: 200K tokens                      │
+│  ├─ Safety level: HIGH (Constitutional AI)           │
+│  └─ Used for fallback & complex reasoning            │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+```
+
+### API Message Format
+
+```typescript
+// JSON-RPC 2.0 Message Structure
+interface CopilotProtocolMessage {
+  jsonrpc: "2.0";
+  method: string;  // e.g., "execute_tool", "request_feedback"
+  params?: object;
+  id?: string | number;
+  
+  // Response fields
+  result?: any;
+  error?: {
+    code: number;
+    message: string;
+    data?: any;
+  };
+}
+
+// Example: Execute bash command
+{
+  "jsonrpc": "2.0",
+  "method": "bash_tool",
+  "params": {
+    "command": "npm test",
+    "timeout": 120,
+    "cwd": "/home/runner/work/repo"
+  },
+  "id": "bash-1"
+}
+
+// Example: Response
+{
+  "jsonrpc": "2.0",
+  "id": "bash-1",
+  "result": {
+    "stdout": "42 tests passed",
+    "stderr": "",
+    "exit_code": 0
+  }
+}
+```
+
+### Session Lifecycle Communication
+
+```
+1. SESSION CREATION
+┌─────────────────────────────────────────┐
+│ POST /agents/swe/agent/jobs              │
+│ ├─ task_id: UUID                         │
+│ ├─ repository: owner/name                │
+│ ├─ issue_number: 42                      │
+│ └─ custom_instructions: string           │
+└─────────────────────────────────────────┘
+           ↓
+Response: { session_id: "sess_xyz...", status: "initializing" }
+
+2. SESSION POLLING / WEBHOOK
+┌─────────────────────────────────────────┐
+│ GET /agents/swe/agent/sessions/{id}      │
+│ Frequency: Every 5-10 seconds            │
+│ (or WebSocket subscription)               │
+└─────────────────────────────────────────┘
+           ↓
+Response: { status: "running", progress: 0.45, current_step: "..." }
+
+3. SESSION COMPLETION
+┌─────────────────────────────────────────┐
+│ POST /agents/swe/agent/callbacks         │
+│ ├─ session_id: UUID                      │
+│ ├─ status: "completed"                   │
+│ ├─ pull_request_url: GitHub PR link      │
+│ └─ summary: Agent's work summary         │
+└─────────────────────────────────────────┘
+           ↓
+GitHub API: Update PR / Create issue comment
+```
+
+---
+
+## Narzędzia agenta
+
+### Available Tools
+
+Agent ma dostęp do zaawansowanego zestawu narzędzi do wykonywania zadań:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    AGENT TOOLS                          │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  1. FILE OPERATIONS (str_replace_based_editor)          │
+│  ├─ read_file(path)                                     │
+│  ├─ write_file(path, content)                           │
+│  ├─ str_replace_based_edit_tool(...)                    │
+│  │   ├─ file: path                                      │
+│  │   ├─ from_str: original content                      │
+│  │   └─ to_str: replacement content                     │
+│  └─ create_file(path, content)                          │
+│                                                         │
+│  2. BASH / TERMINAL (bash_tool)                         │
+│  ├─ execute_command(cmd, timeout)                       │
+│  ├─ get_command_output(cmd)                             │
+│  ├─ cd(directory)                                       │
+│  └─ Approved tools only (security gated)                │
+│                                                         │
+│  3. GIT OPERATIONS (git_tool)                           │
+│  ├─ git_commit(message, files)                          │
+│  ├─ git_add(files)                                      │
+│  ├─ git_push()                                          │
+│  ├─ git_branch(name)                                    │
+│  ├─ git_checkout(branch)                                │
+│  └─ git_status()                                        │
+│                                                         │
+│  4. CODEBASE ANALYSIS                                   │
+│  ├─ search_code(query)                                  │
+│  │   └─ RAG-powered search (GitHub's implementation)    │
+│  ├─ find_similar_code(snippet)                          │
+│  ├─ analyze_file_structure(path)                        │
+│  └─ get_project_metadata()                              │
+│                                                         │
+│  5. TEST & BUILD                                        │
+│  ├─ run_tests(framework, pattern)                       │
+│  ├─ run_linter(linter_name)                             │
+│  ├─ build_project(build_command)                        │
+│  └─ coverage_check()                                    │
+│                                                         │
+│  6. DOCUMENTATION                                       │
+│  ├─ generate_documentation(file)                        │
+│  ├─ update_readme(section, content)                     │
+│  └─ generate_changelog_entry()                          │
+│                                                         │
+│  7. MCP TOOLS (via Model Context Protocol)              │
+│  ├─ Playwright tools (47 endpoints)                     │
+│  ├─ GitHub API tools (47 endpoints)                     │
+│  └─ Custom tool integrations                            │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Tool Execution Flow
+
+```
+Agent Decision Loop:
+    ↓
+Tool Selection Engine
+├─ Analyze current state
+├─ Determine next action
+├─ Select appropriate tool
+└─ Prepare tool parameters
+    ↓
+Tool Invocation
+├─ Validate parameters
+├─ Check permissions/firewall
+├─ Execute tool
+└─ Capture output/errors
+    ↓
+Result Evaluation
+├─ Parse tool output
+├─ Check for errors
+├─ Update internal state
+└─ Generate next prompt for AI
+    ↓
+Feedback Loop
+└─ If success: Continue iteration or finish
+    └─ If failure: Adjust strategy, retry or escalate
+```
+
+---
+
+## Monitoring i śledzenie sesji
+
+### Session Tracking Mechanisms
+
+```
+┌──────────────────────────────────────────────────────┐
+│           SESSION TRACKING ARCHITECTURE              │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  REAL-TIME TRACKING                                  │
+│  ├─ Agents Panel (live updates)                      │
+│  │  └─ WebSocket connection to GitHub                │
+│  │                                                   │
+│  ├─ VS Code Integration                              │
+│  │  └─ GitHub Pull Requests extension                │
+│  │                                                   │
+│  ├─ GitHub CLI (gh agent-task view --follow)         │
+│  │  └─ Streaming session logs in terminal            │
+│  │                                                   │
+│  └─ Web UI (Session View)                            │
+│     └─ Detailed logs with timestamps                 │
+│                                                      │
+│  PERSISTENT LOGGING                                  │
+│  ├─ Session metadata (Redis)                         │
+│  ├─ Detailed logs (GitHub PR timeline)               │
+│  ├─ AI reasoning ("internal monologue")              │
+│  ├─ Tool invocations                                 │
+│  └─ Token usage tracking                             │
+│                                                      │
+│  METRICS & ANALYTICS                                 │
+│  ├─ Success rate                                     │
+│  ├─ Average time to completion                       │
+│  ├─ Tool usage patterns                              │
+│  ├─ Error rates                                      │
+│  └─ Model performance metrics                        │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+```
+
+### Session Log Structure
+
+```json
+{
+  "session_id": "sess-2025-10-31-13:24:15-xyz",
+  "task_id": "task-446c2c74",
+  "created_at": "2025-10-31T13:24:15.000Z",
+  "status": "completed",
+  "total_duration_seconds": 312,
+  "metrics": {
+    "tokens_used": 12847,
+    "tokens_limit": 128000,
+    "tools_invoked": 47,
+    "files_modified": 6,
+    "files_created": 3,
+    "commits_made": 5,
+    "test_passed": 42,
+    "test_failed": 0,
+    "confidence_score": 0.87
+  },
+  "events": [
+    {
+      "timestamp": "2025-10-31T13:24:15.123Z",
+      "event_type": "session_started",
+      "details": "Agent initialized for issue #42"
+    },
+    {
+      "timestamp": "2025-10-31T13:24:22.456Z",
+      "event_type": "tool_invoked",
+      "tool_name": "search_code",
+      "params": { "query": "authentication token" },
+      "result": "Found 5 relevant files"
+    },
+    {
+      "timestamp": "2025-10-31T13:24:45.789Z",
+      "event_type": "ai_reasoning",
+      "reasoning": "Bug identified in token expiration logic at line 127 of auth.ts. Token refresh mechanism not triggered properly.",
+      "confidence": 0.92
+    },
+    {
+      "timestamp": "2025-10-31T13:25:02.012Z",
+      "event_type": "file_modified",
+      "file_path": "src/auth.ts",
+      "lines_added": 5,
+      "lines_removed": 2
+    },
+    {
+      "timestamp": "2025-10-31T13:25:15.345Z",
+      "event_type": "test_run",
+      "test_count": 42,
+      "passed": 42,
+      "failed": 0,
+      "duration_ms": 3500
+    }
+  ],
+  "pull_request": {
+    "number": 1,
+    "url": "https://github.com/arturwyroslak/neew/pull/1",
+    "status": "draft",
+    "files_changed": 6
+  }
+}
+```
+
+### Tracking Points Dostępu
+
+1. **GitHub Web UI**
+   - Agents Panel (every page)
+   - Dedicated agents tab (github.com/copilot/agents)
+   - PR timeline with session link
+
+2. **VS Code**
+   - GitHub Pull Requests extension
+   - Sessions view (experimental setting)
+   - Inline notifications
+
+3. **GitHub CLI**
+   - `gh agent-task list` - List all sessions
+   - `gh agent-task view {pr}` - View specific session
+   - `gh agent-task view --log --follow` - Real-time stream
+
+4. **API Access**
+   - GraphQL: Query session status
+   - REST: `/repos/{owner}/{repo}/pulls/{number}`
+   - WebSocket: Subscribe to real-time updates
+
+---
+
+## Integracja z GitHub Actions
+
+### Workflow Configuration dla Copilot
+
+Każde repozytorium może mieć dedicatowany workflow do konfiguracji Copilot environment:
+
+```yaml
+# .github/workflows/copilot-setup.yml
+name: Copilot Agent Setup
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        type: string
+        default: "20"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+      
+      - name: Install dependencies
+        run: npm install --prefer-offline
+      
+      - name: Install global tools
+        run: |
+          npm install -g eslint prettier
+          pip install black mypy
+      
+      - name: Verify environment
+        run: |
+          node --version
+          npm --version
+          python --version
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Run linters
+        run: npm run lint
+      
+      - name: Run tests
+        run: npm test
+```
+
+### Environment Configuration
+
+```yaml
+# .github/workflows/copilot-env.yml
+name: Copilot Custom Environment
+
+on: workflow_dispatch
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Custom environment setup
+      - name: Install database drivers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client mysql-client
+      
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Configure secrets
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+        run: |
+          echo "Environment configured"
+          # Copilot will have access to these secrets
+```
+
+### Feature Flags & Configuration
+
+Copilot agent respektuje konfigurację repository i feature flags:
+
+```yaml
+# Repository Settings: Copilot → Coding Agent → Configuration
+
+features:
+  firewall_enabled: true
+  mcp_enabled: true
+  vision_enabled: true
+  lsp_diagnostics: true
+  sync_pr_title: true
+
+firewall:
+  enabled: true
+  allow_list:
+    - "https://npm-registry.contoso.corp/"
+    - "api.service.mycompany.com"
+    - domain: "github.com"
+      allow_subdomains: true
+
+mcp_servers:
+  - name: "github-mcp"
+    enabled: true
+  - name: "playwright-mcp"
+    enabled: true
+
+custom_instructions: |
+  Always follow our coding standards:
+  - Use ESLint configuration from .eslintrc.json
+  - Write tests using Jest framework
+  - Follow the PR template in CONTRIBUTING.md
+  - Ensure 90%+ code coverage for new code
+
+rate_limits:
+  max_tasks_per_day: 100
+  timeout_minutes: 59
+```
+
+---
+
+## Podsumowanie Architektury
+
+### Kluczowe warstwy systemu:
+
+| Warstwa | Komponenty | Funkcja |
+|---------|-----------|---------|
+| **Interfejsu** | Agents Panel, PR UI, CLI, IDEs | Interakcja z użytkownikiem |
+| **Logiki** | Agent Engine, Decision Loop, Tools | Autonomiczna logika biznesowa |
+| **Danych** | Session State, Redis, GitHub API | Trwałość i zarządzanie stanem |
+| **Wykonania** | GitHub Actions, eBPF Firewall, Containers | Izolowana, bezpieczna egzekucja |
+| **Integracji** | MCP, OpenAI, Anthropic, GitHub | Połączenia zewnętrzne |
+| **Bezpieczeństwa** | Firewall, Tokens, HMAC, TLS 1.3 | Ochrona danych i dostępu |
+
+### Przepływ techniczny end-to-end:
+
+```
+Użytkownik klika "Assign to Copilot"
+        ↓
+Agents Panel tworzy task w GitHub API
+        ↓
+GitHub Actions job spinup
+        ↓
+Agent inicjalizuje się w containerze
+        ↓
+Pobiera kontekst z repozytorium
+        ↓
+Loop: Analyze → Plan → Execute → Validate → Iterate
+        ↓
+Pushuje zmiany i tworzy PR
+        ↓
+Session loguje się w GitHub timeline
+        ↓
+Użytkownik przegląda i zatwierdza
+        ↓
+Merge do main branch
+```
+
+### Cechy architektoniczne:
+
+✅ **Autonomia** - Agent podejmuje decyzje niezależnie
+✅ **Bezpieczeństwo** - Wielowarstwowa ochrona, firewall eBPF
+✅ **Transparentność** - Wszystkie operacje widoczne w UI
+✅ **Skalowlaność** - GitHub Actions handles parallization
+✅ **Extensibility** - MCP pozwala na integracje custom
+✅ **Kontrola** - Człowiek zawsze może review i approve
+✅ **Compliance** - Audit logs, branch protections, approvals
