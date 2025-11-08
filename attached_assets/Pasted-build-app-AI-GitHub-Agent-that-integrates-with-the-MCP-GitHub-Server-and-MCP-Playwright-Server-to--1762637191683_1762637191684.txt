@@ -1,0 +1,37 @@
+build app "AI GitHub Agent" that integrates with the MCP GitHub Server and MCP Playwright Server to autonomously plan, orchestrate, and execute full-stack software development workflows. The agent should use advanced reasoning, contextual memory, and dynamic prompt engineering to understand, modify, and improve codebases while maintaining a continuous feedback loop between planning, execution, and testing.
+
+The system should operate both as an autonomous AI developer and as a GitHub App bot that reacts intelligently to repository events such as pull requests, issues, comments, pushes, or workflow updates. It must leverage the MCP GitHub Server for repository interaction — reading, editing, and committing code; managing branches, issues, and pull requests — and the MCP Playwright Server for browser-based UI automation, integration testing, and visual validation of applications.
+
+The AI reasoning engine should connect to any OpenAI-compatible endpoint and model (e.g., OpenAI, Anthropic, Mistral, Ollama, or custom local APIs). It must employ **advanced prompt engineering** — dynamically constructing and refining prompts depending on the nature of the task (e.g., refactoring, feature creation, test generation, debugging, or UX validation). Prompts should include repository context, code snippets, prior reasoning traces, and task metadata. The system should support composable and diff-aware prompt strategies, allowing the AI to compare versions, generate precise code diffs, and iteratively fix or enhance code based on compiler errors, test results, or review feedback.
+
+The agent must **understand and remember context** across sessions, maintaining a semantic representation of the repository’s architecture, dependency graph, active branches, and prior modifications. It should be able to reason over historical commits, test outputs, and open issues to identify bugs, dependencies, and logical inconsistencies, then autonomously propose or apply targeted fixes.
+
+Execution of tasks should occur inside **ephemeral lightweight containerized runners** — isolated environments launched on demand for the duration of a specific job. Each runner should clone the repository, execute build/test cycles, perform Playwright browser actions, apply code patches via diff operations, and return logs, test artifacts, and updated code to the orchestration layer. Runners must stream live telemetry — logs, test results, reasoning summaries, diffs, screenshots, and browser session recordings — to the dashboard for real-time observability.
+
+The backend (Python, FastAPI) should manage:
+- orchestration and scheduling of reasoning and execution workflows,
+- adaptive prompt generation and memory management,
+- version control and diff-based code modification,
+- runner lifecycle and container orchestration,
+- integration with MCP GitHub and Playwright servers,
+- AI model routing (OpenAI-compatible endpoints),
+- GitHub App webhook handling and task event routing,
+- secure token vaulting, audit logging, and branch protection compliance.
+
+The frontend (React + Tailwind) should provide:
+- a live dashboard visualizing active tasks, reasoning chains, and container sessions,
+- real-time log streams, Playwright test replays, and diff views,
+- visualization of the agent’s context memory and current plan,
+- PR summaries, AI explanations, and code review insights,
+- and human-in-the-loop controls for approvals, feedback, or overrides.
+
+Security and safety requirements include sandboxed container execution, network isolation, GitHub App permission scoping, branch protection enforcement, auditable reasoning traces, and optional manual checkpoints. The agent should demonstrate how MCP GitHub Server, MCP Playwright Server, contextual memory, diff-based code reasoning, and adaptive prompt engineering can be combined to create a transparent, safe, and autonomous full-stack development system — capable of understanding, writing, testing, and improving complex software projects end-to-end.
+
+Provide:
+- a complete system architecture and data flow diagram,
+- component specifications and source code structure,
+- example MCP configurations for both GitHub and Playwright servers,
+- diff-based reasoning and memory management design,
+- runner container setup and streaming implementation,
+- GitHub App manifest and webhook configuration,
+- and deployment instructions for local and cloud environments.
