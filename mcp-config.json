@@ -1,0 +1,157 @@
+{
+  "mcpServers": [
+    {
+      "name": "github-mcp",
+      "type": "github",
+      "description": "GitHub MCP Server with 47 repository operation endpoints",
+      "enabled": true,
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "capabilities": {
+        "tools": [
+          "create_or_update_file",
+          "search_repositories",
+          "create_repository",
+          "get_file_contents",
+          "push_files",
+          "create_issue",
+          "create_pull_request",
+          "fork_repository",
+          "create_branch",
+          "list_commits",
+          "list_issues",
+          "update_issue",
+          "add_issue_comment",
+          "search_code",
+          "search_issues",
+          "get_issue",
+          "list_pull_requests",
+          "get_pull_request",
+          "update_pull_request",
+          "merge_pull_request",
+          "list_pull_request_files",
+          "create_pull_request_review",
+          "list_pull_request_reviews",
+          "get_repository",
+          "list_repository_collaborators",
+          "create_release",
+          "list_releases",
+          "get_release",
+          "update_release",
+          "delete_release",
+          "list_branches",
+          "get_branch",
+          "delete_branch",
+          "merge_branch",
+          "create_tag",
+          "list_tags",
+          "get_tag",
+          "delete_tag",
+          "list_workflows",
+          "get_workflow",
+          "trigger_workflow",
+          "list_workflow_runs",
+          "get_workflow_run",
+          "cancel_workflow_run",
+          "list_repository_contents",
+          "create_commit_status",
+          "list_commit_statuses"
+        ],
+        "resources": true,
+        "prompts": true
+      },
+      "config": {
+        "baseUrl": "https://api.github.com",
+        "rateLimit": {
+          "maxRequests": 5000,
+          "perHour": true
+        }
+      }
+    },
+    {
+      "name": "playwright-mcp",
+      "type": "custom",
+      "description": "Playwright MCP Server for browser automation and E2E testing (requires @executeautomation/playwright-mcp-server package)",
+      "enabled": false,
+      "command": "node",
+      "args": ["./node_modules/@executeautomation/playwright-mcp-server/dist/index.js"],
+      "env": {
+        "PLAYWRIGHT_BROWSERS_PATH": "${HOME}/.cache/ms-playwright"
+      },
+      "capabilities": {
+        "tools": [
+          "playwright_navigate",
+          "playwright_screenshot",
+          "playwright_click",
+          "playwright_fill",
+          "playwright_select",
+          "playwright_evaluate",
+          "playwright_wait_for_selector",
+          "playwright_get_text",
+          "playwright_press_key",
+          "playwright_hover",
+          "playwright_get_attribute",
+          "playwright_check",
+          "playwright_uncheck",
+          "playwright_select_option",
+          "playwright_upload_file",
+          "playwright_download_file",
+          "playwright_clear",
+          "playwright_focus",
+          "playwright_blur",
+          "playwright_type",
+          "playwright_wait_for_timeout",
+          "playwright_wait_for_load_state",
+          "playwright_go_back",
+          "playwright_go_forward",
+          "playwright_reload",
+          "playwright_get_url",
+          "playwright_get_title",
+          "playwright_get_content",
+          "playwright_is_visible",
+          "playwright_is_enabled",
+          "playwright_is_checked",
+          "playwright_count_elements",
+          "playwright_get_bounding_box",
+          "playwright_drag_and_drop",
+          "playwright_add_script_tag",
+          "playwright_add_style_tag",
+          "playwright_set_viewport_size",
+          "playwright_set_extra_http_headers",
+          "playwright_set_offline",
+          "playwright_set_geolocation",
+          "playwright_grant_permissions",
+          "playwright_clear_permissions",
+          "playwright_emulate_media",
+          "playwright_route",
+          "playwright_unroute",
+          "playwright_wait_for_event",
+          "playwright_expose_function",
+          "playwright_add_init_script"
+        ]
+      },
+      "config": {
+        "headless": true,
+        "browser": "chromium",
+        "timeout": 30000,
+        "slowMo": 0,
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      }
+    }
+  ],
+  "mcpEnabled": true,
+  "mcpVersion": "2024-11-05",
+  "settings": {
+    "maxConcurrentServers": 5,
+    "serverStartupTimeout": 30000,
+    "toolExecutionTimeout": 120000,
+    "retryAttempts": 3,
+    "retryDelay": 1000
+  }
+}

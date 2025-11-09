@@ -5,6 +5,10 @@ import { AIService } from "./services/ai";
 import { GitHubService } from "./services/github";
 import { RepositoryContextService } from "./services/repository-context";
 import { MCPClientManager } from "./services/mcp-client";
+import { MemoryManager } from "./services/memory-manager";
+import { AdvancedPromptEngineer } from "./services/advanced-prompt-engineering";
+import { ContainerRunnerService } from "./services/container-runner";
+import { SessionManager } from "./services/session-manager";
 import {
   insertTaskSchema,
   insertGithubEventSchema,
@@ -16,6 +20,8 @@ import {
   type ReasoningStep,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import fs from "fs/promises";
+import path from "path";
 
 // SSE clients for real-time log streaming
 const sseClients = new Map<string, Set<any>>();
@@ -23,19 +29,101 @@ const sseClients = new Map<string, Set<any>>();
 let aiService: AIService | null = null;
 let githubService: GitHubService | null = null;
 let repositoryContextService: RepositoryContextService | null = null;
+let memoryManager: MemoryManager | null = null;
+let promptEngineer: AdvancedPromptEngineer | null = null;
+let containerRunner: ContainerRunnerService | null = null;
+let sessionManager: SessionManager | null = null;
 const mcpClientManager = new MCPClientManager();
 
 // Initialize services with settings if available
 async function initializeServices() {
   const settings = await storage.getSettings();
   if (settings?.ai) {
-    aiService = new AIService(settings.ai, storage);
+    aiService = new AIService(settings.ai, storage, mcpClientManager);
   }
   if (settings?.github) {
     githubService = new GitHubService(settings.github);
   }
   if (githubService) {
+    memoryManager = new MemoryManager(storage, githubService, aiService || undefined);
     repositoryContextService = new RepositoryContextService(storage, githubService, aiService || undefined);
+  }
+  
+  // Initialize session manager
+  sessionManager = new SessionManager(storage, 3600); // 1 hour TTL
+  
+  // Initialize advanced prompt engineering
+  promptEngineer = new AdvancedPromptEngineer(memoryManager || undefined, mcpClientManager);
+  
+  // Initialize container runner service
+  containerRunner = new ContainerRunnerService();
+  
+  // Setup container runner event handlers
+  if (containerRunner) {
+    containerRunner.on("runner:log", async ({ runnerId, log }) => {
+      // Broadcast logs to SSE clients
+      const runner = containerRunner!.getRunner(runnerId);
+      if (runner && sseClients.has(runner.taskId)) {
+        const clients = sseClients.get(runner.taskId);
+        clients?.forEach(client => {
+          client.write(`data: ${JSON.stringify({ type: "container_log", data: log })}\n\n`);
+        });
+      }
+    });
+
+    containerRunner.on("runner:stats", async ({ runnerId, stats }) => {
+      const runner = containerRunner!.getRunner(runnerId);
+      if (runner && sseClients.has(runner.taskId)) {
+        const clients = sseClients.get(runner.taskId);
+        clients?.forEach(client => {
+          client.write(`data: ${JSON.stringify({ type: "container_stats", data: stats })}\n\n`);
+        });
+      }
+    });
+  }
+  
+  // Setup session manager event handlers
+  if (sessionManager) {
+    sessionManager.on("session:created", (session) => {
+      console.log(`Session created: ${session.sessionId}`);
+    });
+
+    sessionManager.on("timeline:event", (event) => {
+      // Broadcast timeline events to SSE clients
+      const session = sessionManager!.getSession(event.sessionId);
+      if (session && sseClients.has(session.taskId)) {
+        const clients = sseClients.get(session.taskId);
+        clients?.forEach(client => {
+          client.write(`data: ${JSON.stringify({ type: "timeline_event", data: event })}\n\n`);
+        });
+      }
+    });
+  }
+  
+  // Load MCP servers from config
+  try {
+    const mcpConfigPath = path.join(process.cwd(), "mcp-config.json");
+    const mcpConfigContent = await fs.readFile(mcpConfigPath, "utf-8");
+    const mcpConfig = JSON.parse(mcpConfigContent);
+    
+    if (mcpConfig.mcpEnabled && mcpConfig.mcpServers) {
+      for (const serverConfig of mcpConfig.mcpServers) {
+        // Skip disabled servers
+        if (serverConfig.enabled === false) {
+          console.log(`Skipping disabled MCP server: ${serverConfig.name}`);
+          continue;
+        }
+        
+        try {
+          await mcpClientManager.addServer(serverConfig);
+          console.log(`MCP Server initialized: ${serverConfig.name}`);
+        } catch (error) {
+          console.error(`Failed to initialize MCP server ${serverConfig.name}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.log("MCP config not found or invalid, skipping MCP initialization");
   }
 }
 
@@ -334,6 +422,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const limit = parseInt(req.query.limit as string) || 10;
     const events = await storage.getRecentEvents(limit);
     res.json(events);
+  });
+
+  // === GITHUB REPOSITORIES ENDPOINT ===
+  app.get("/api/github/repositories", async (_req, res) => {
+    try {
+      if (!githubService) {
+        return res.status(503).json({ error: "GitHub service not initialized. Please configure GitHub settings." });
+      }
+      
+      const repositories = await githubService.listUserRepositories();
+      res.json(repositories);
+    } catch (error: any) {
+      console.error("Error fetching repositories:", error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // === SETTINGS ENDPOINTS ===
@@ -741,6 +844,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // === METRICS ENDPOINT ===
+  // === SYSTEM STATUS ENDPOINT ===
+  app.get("/api/system/status", async (_req, res) => {
+    try {
+      const mcpClients = mcpClientManager.listClients();
+      const activeSessions = sessionManager?.getActiveSessions() || [];
+      
+      const status = {
+        mcpServers: mcpClients.map(client => ({
+          name: client.id,
+          status: client.initialized ? "connected" : "disconnected",
+          toolsCount: 0, // Will be populated from MCP client
+        })),
+        containerRunner: {
+          available: containerRunner !== null,
+          activeContainers: containerRunner?.getActiveRunners().length || 0,
+          totalCapacity: 10,
+        },
+        memory: {
+          used: process.memoryUsage().heapUsed / 1024 / 1024,
+          total: process.memoryUsage().heapTotal / 1024 / 1024,
+          unit: "MB",
+        },
+        sessions: {
+          active: activeSessions.length,
+          cached: 0,
+        },
+      };
+      
+      res.json(status);
+    } catch (error) {
+      console.error("Error fetching system status:", error);
+      res.status(500).json({ error: "Failed to fetch system status" });
+    }
+  });
+
+  // === SESSION TIMELINE ENDPOINT ===
+  app.get("/api/sessions/timeline/recent", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      
+      // Get recent timeline events from session manager
+      const events = sessionManager?.getRecentTimelineEvents(limit) || [];
+      
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching timeline events:", error);
+      res.status(500).json({ error: "Failed to fetch timeline events" });
+    }
+  });
+
+  // === MCP TOOLS ENDPOINT ===
+  app.get("/api/mcp/tools", async (_req, res) => {
+    try {
+      const clients = mcpClientManager.listClients();
+      const allTools: any[] = [];
+      
+      for (const client of clients) {
+        const mcpClient = mcpClientManager.getClient(client.id);
+        if (mcpClient) {
+          const tools = await mcpClient.listTools();
+          tools.forEach(tool => {
+            allTools.push({
+              name: tool.name,
+              description: tool.description || "",
+              server: client.id,
+              category: categorizeTool(tool.name),
+              parameters: tool.inputSchema?.properties 
+                ? Object.entries(tool.inputSchema.properties).map(([name, schema]: [string, any]) => ({
+                    name,
+                    type: schema.type || "string",
+                    required: tool.inputSchema?.required?.includes(name) || false,
+                  }))
+                : [],
+            });
+          });
+        }
+      }
+      
+      res.json(allTools);
+    } catch (error) {
+      console.error("Error fetching MCP tools:", error);
+      res.status(500).json({ error: "Failed to fetch MCP tools" });
+    }
+  });
+
   app.get("/api/metrics", async (_req, res) => {
     const allTasks = await storage.getAllTasks();
     const activeTasks = allTasks.filter(
@@ -778,6 +966,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper function to categorize MCP tools
+function categorizeTool(toolName: string): string {
+  const name = toolName.toLowerCase();
+  
+  if (name.includes("repository") || name.includes("repo") || name.includes("fork")) {
+    return "repository";
+  }
+  if (name.includes("code") || name.includes("file") || name.includes("search")) {
+    return "code";
+  }
+  if (name.includes("issue")) {
+    return "issue";
+  }
+  if (name.includes("pull") || name.includes("pr") || name.includes("review")) {
+    return "pr";
+  }
+  if (name.includes("workflow") || name.includes("action")) {
+    return "workflow";
+  }
+  if (name.includes("playwright") || name.includes("browser") || name.includes("navigate") || name.includes("screenshot")) {
+    return "browser";
+  }
+  
+  return "other";
 }
 
 // Helper function to broadcast logs to SSE clients

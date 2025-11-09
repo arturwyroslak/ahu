@@ -359,7 +359,7 @@ export class MCPClient {
   }
 
   private rejectAllPendingRequests(error: Error): void {
-    for (const [id, pending] of this.pendingRequests.entries()) {
+    for (const [id, pending] of Array.from(this.pendingRequests.entries())) {
       pending.reject(error);
       this.pendingRequests.delete(id);
     }
@@ -415,6 +415,14 @@ export class MCPClientManager {
   async closeAllClients(): Promise<void> {
     const closePromises = Array.from(this.clients.keys()).map(id => this.closeClient(id));
     await Promise.all(closePromises);
+  }
+
+  /**
+   * Alias for createClient (for compatibility)
+   */
+  async addServer(config: MCPServerConfig): Promise<MCPClient> {
+    const id = config.name || `mcp-${Date.now()}`;
+    return this.createClient(id, config);
   }
 
   listClients(): Array<{ id: string; config: MCPServerConfig; initialized: boolean }> {

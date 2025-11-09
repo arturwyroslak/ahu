@@ -6,16 +6,22 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import Dashboard from "@/pages/dashboard";
+import Home from "@/pages/home";
 import TaskDetail from "@/pages/task-detail";
+import SystemStatusPage from "@/pages/system-status-page";
+import Statistics from "@/pages/statistics";
+import History from "@/pages/history";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
+      <Route path="/" component={Home} />
       <Route path="/task/:id" component={TaskDetail} />
+      <Route path="/system-status" component={SystemStatusPage} />
+      <Route path="/statistics" component={Statistics} />
+      <Route path="/history" component={History} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

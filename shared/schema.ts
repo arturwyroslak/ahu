@@ -45,11 +45,10 @@ export type FileDiff = z.infer<typeof fileDiffSchema>;
 // Task
 export const taskSchema = z.object({
   id: z.string(),
-  title: z.string(),
   status: taskStatusSchema,
   repository: z.string(),
   branch: z.string().optional(),
-  summary: z.string(),
+  description: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
   progress: z.number().min(0).max(100).default(0),
@@ -358,5 +357,79 @@ export const mcpToolExecutionResultSchema = z.object({
 });
 
 export type MCPToolExecutionResult = z.infer<typeof mcpToolExecutionResultSchema>;
+
+// Container Runner Types
+export const containerStatusSchema = z.enum([
+  "creating",
+  "pulling",
+  "starting",
+  "running",
+  "stopping",
+  "stopped",
+  "failed",
+  "timeout",
+]);
+
+export type ContainerStatus = z.infer<typeof containerStatusSchema>;
+
+export const containerConfigSchema = z.object({
+  image: z.string(),
+  repository: z.string(),
+  branch: z.string(),
+  command: z.array(z.string()).optional(),
+  env: z.record(z.string()).optional(),
+  workDir: z.string().optional(),
+  memoryLimit: z.string().optional(),
+  cpuLimit: z.string().optional(),
+  networkMode: z.enum(["none", "bridge", "host"]).optional(),
+  timeoutMs: z.number().optional(),
+});
+
+export type ContainerConfig = z.infer<typeof containerConfigSchema>;
+
+export const containerLogEntrySchema = z.object({
+  timestamp: z.number(),
+  stream: z.enum(["stdout", "stderr"]),
+  message: z.string(),
+  level: z.enum(["info", "warn", "error", "debug"]).optional(),
+});
+
+export type ContainerLogEntry = z.infer<typeof containerLogEntrySchema>;
+
+export const containerStatsSchema = z.object({
+  containerId: z.string(),
+  cpuUsage: z.number(),
+  memoryUsage: z.number(),
+  networkRx: z.number(),
+  networkTx: z.number(),
+  timestamp: z.number(),
+});
+
+export type ContainerStats = z.infer<typeof containerStatsSchema>;
+
+export const containerArtifactSchema = z.object({
+  type: z.enum(["log", "screenshot", "test-report", "diff", "build-output"]),
+  path: z.string(),
+  content: z.string().optional(), // Base64 encoded for binary data, plain text otherwise
+  contentEncoding: z.enum(["base64", "utf-8", "none"]).default("utf-8").optional(),
+  metadata: z.record(z.any()).optional(),
+});
+
+export type ContainerArtifact = z.infer<typeof containerArtifactSchema>;
+
+export const containerRunnerSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  containerId: z.string().optional(),
+  config: containerConfigSchema,
+  status: containerStatusSchema,
+  startedAt: z.number().optional(),
+  stoppedAt: z.number().optional(),
+  logs: z.array(containerLogEntrySchema).default([]),
+  artifacts: z.array(containerArtifactSchema).default([]),
+  stats: z.array(containerStatsSchema).default([]),
+});
+
+export type ContainerRunner = z.infer<typeof containerRunnerSchema>;
 
 export * from "./db-schema";

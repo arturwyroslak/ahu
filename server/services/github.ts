@@ -98,6 +98,11 @@ export class GitHubService {
     }
   }
 
+  async listUserRepositories(): Promise<GitHubRepository[]> {
+    const response = await this.request("/user/repos?sort=updated&per_page=100");
+    return response;
+  }
+
   async getBranch(owner: string, repo: string, branch: string) {
     return this.request(`/repos/${owner}/${repo}/branches/${branch}`);
   }

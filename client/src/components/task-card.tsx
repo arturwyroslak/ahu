@@ -8,20 +8,18 @@ type TaskStatus = "planning" | "executing" | "completed" | "failed" | "queued";
 
 interface TaskCardProps {
   id: string;
-  title: string;
+  description: string;
   status: TaskStatus;
   timestamp: string;
-  summary: string;
   progress?: number;
   repository?: string;
 }
 
 export function TaskCard({
   id,
-  title,
+  description,
   status,
   timestamp,
-  summary,
   progress = 0,
   repository,
 }: TaskCardProps) {
@@ -30,10 +28,7 @@ export function TaskCard({
       <CardHeader className="space-y-0 pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-medium truncate" data-testid={`text-task-title-${id}`}>
-              {title}
-            </h3>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2">
               {repository && (
                 <span className="text-xs text-muted-foreground">{repository}</span>
               )}
@@ -45,8 +40,8 @@ export function TaskCard({
       </CardHeader>
 
       <CardContent className="pb-3">
-        <p className="text-sm text-foreground line-clamp-2" data-testid={`text-task-summary-${id}`}>
-          {summary}
+        <p className="text-sm text-foreground line-clamp-3" data-testid={`text-task-description-${id}`}>
+          {description}
         </p>
         
         {progress > 0 && (

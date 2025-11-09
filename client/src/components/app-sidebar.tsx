@@ -1,30 +1,32 @@
-import { Activity, GitBranch, History, Home, Settings, Zap } from "lucide-react";
+import { Activity, History, Home, Settings, Zap, Server, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
   {
-    title: "Dashboard",
+    title: "Create Task",
     url: "/",
     icon: Home,
   },
   {
-    title: "Active Tasks",
-    url: "/tasks",
-    icon: Activity,
-    badge: 3,
+    title: "System Status",
+    url: "/system-status",
+    icon: Server,
+  },
+  {
+    title: "Statistics",
+    url: "/statistics",
+    icon: BarChart3,
   },
   {
     title: "History",
@@ -57,7 +59,6 @@ export function AppSidebar() {
       
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -70,11 +71,6 @@ export function AppSidebar() {
                     <Link href={item.url}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                      {item.badge && (
-                        <Badge variant="secondary" className="ml-auto h-5 px-1.5 text-xs">
-                          {item.badge}
-                        </Badge>
-                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -82,38 +78,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Connection</SidebarGroupLabel>
-          <SidebarGroupContent className="px-3">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">GitHub</span>
-                <div className="flex items-center gap-1">
-                  <div className="h-2 w-2 rounded-full bg-chart-2" />
-                  <span className="text-foreground">Connected</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">OpenAI</span>
-                <div className="flex items-center gap-1">
-                  <div className="h-2 w-2 rounded-full bg-chart-2" />
-                  <span className="text-foreground">Active</span>
-                </div>
-              </div>
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-muted-foreground" />
-          <div className="flex-1 text-xs text-muted-foreground truncate">
-            octocat/demo-repo
-          </div>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   );
 }

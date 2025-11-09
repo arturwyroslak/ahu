@@ -3,6 +3,7 @@ import type { IStorage } from "../storage";
 import { DiffService } from "./diff";
 import { AIProviderManager, type ChatMessage } from "./ai-provider-manager";
 import type { MCPClientManager } from "./mcp-client";
+import { randomUUID } from "crypto";
 
 interface ChatCompletionRequest {
   model: string;

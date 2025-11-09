@@ -10,6 +10,68 @@ The application provides a real-time dashboard for monitoring AI reasoning chain
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Architecture Updates (November 2025)
+
+### Advanced Features Implemented
+
+**Container Runner System:**
+- Ephemeral lightweight Docker containers for isolated task execution
+- Resource limits (memory, CPU) and security constraints
+- Network isolation modes (none, bridge, host)
+- Real-time log streaming (stdout/stderr) with level detection
+- Performance statistics collection (CPU, memory, network I/O)
+- Automatic cleanup and timeout handling
+- Artifact management (logs, screenshots, test reports, diffs)
+
+**Contextual Memory Manager:**
+- Semantic repository representation with dependency graphs
+- File structure analysis and architectural layer detection
+- Code pattern identification (design patterns, anti-patterns)
+- Technical debt analysis and scoring
+- Knowledge graph for concept relationships
+- Historical analysis (frequently modified files, author expertise)
+- Circular dependency detection
+- Multi-language support (JavaScript, Python, Rust, Go)
+
+**Advanced Prompt Engineering:**
+- Task complexity-based strategy selection
+- Dynamic prompt construction with repository context
+- Historical reasoning integration
+- MCP tools availability awareness
+- Multi-depth reasoning modes (shallow, medium, deep)
+- Task-type specific templates (refactoring, debugging, architecture, etc.)
+- Token optimization and context management
+- Confidence scoring and uncertainty identification
+
+**Session Management System:**
+- Session lifecycle tracking (initialization → execution → feedback → completion)
+- Tool execution history and performance metrics
+- AI context tracking (tokens, providers, message count)
+- Git context integration (branches, PRs, commits)
+- Timeline events for all agent actions
+- Iterative feedback loop support (child sessions)
+- Session statistics and analytics
+- TTL-based automatic cleanup
+
+### GitHub Copilot Integration Features
+
+**Entry Points:**
+- GitHub Issues: Assign to `@copilot`
+- Pull Request Comments: Mention `@copilot` in comments
+- Agents Panel: Direct delegation via UI overlay
+- VS Code: GitHub Pull Requests extension integration
+- GitHub CLI: `gh agent-task create`
+- MCP-enabled tools: Any tool supporting Model Context Protocol
+
+**Execution Flow:**
+1. Branch creation: `copilot/{action-type}-{uuid}`
+2. Draft PR creation with auto-generated title and plan section
+3. GitHub Actions ephemeral environment spinup
+4. Repository clone and dependency installation
+5. AI-driven task execution with real-time monitoring
+6. Iterative feedback handling from PR comments
+7. Timeline events tracking all decisions and actions
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -107,9 +169,27 @@ Preferred communication style: Simple, everyday language.
 - GitHub App webhook system for event-driven automation
 - File content retrieval and repository metadata access
 
-**MCP Servers (Planned):**
-- MCP GitHub Server for enhanced repository operations
-- MCP Playwright Server for browser automation and testing
+**MCP Servers (Implemented):**
+- **MCP GitHub Server** (47 endpoints):
+  - Repository operations (clone, read, write, search)
+  - Pull request management (create, update, review, merge)
+  - Issue manipulation (create, comment, label, assign)
+  - Branch operations (create, delete, merge, rebase)
+  - Workflow triggering and monitoring
+  - Code search and navigation
+  - Release management
+- **MCP Playwright Server** (47 tools):
+  - Browser automation (navigate, click, type, etc.)
+  - Visual testing and screenshot capture
+  - DOM interaction and element selection
+  - E2E test execution and reporting
+  - Performance monitoring
+  - Accessibility testing
+  - Network interception
+- **Custom MCP Servers**:
+  - Proprietary integrations support
+  - External API connections
+  - Domain-specific tools
 
 **UI Component Libraries:**
 - Radix UI primitives (accordion, alert-dialog, avatar, checkbox, dialog, dropdown, popover, scroll-area, select, tabs, toast, tooltip, etc.)
