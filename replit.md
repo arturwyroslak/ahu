@@ -12,6 +12,33 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Architecture Updates (November 2025)
 
+### UI Enhancement (November 9, 2025)
+
+**Dark-Only Neon Theme:**
+- Redesigned entire color scheme to cyberpunk red/orange neon aesthetic (HSL 16-20 degrees)
+- Removed light/dark theme toggle for consistent dark-only experience
+- Implemented subtle animated background glows using CSS pseudo-elements with radial gradients
+- Enhanced keyboard focus states with high-contrast neon outlines for accessibility
+- Updated sidebar with toggle-elevate system and rounded accent indicators
+- Applied neon utilities (neon-text, neon-border, neon-pulse) throughout the interface
+- All components maintain dark-mode compatibility with proper contrast ratios
+
+**Real-Time WebSocket Integration:**
+- Singleton WebSocket manager with auto-reconnect and exponential backoff
+- React hooks for WebSocket subscriptions integrated with TanStack Query
+- Real-time task updates, logs, reasoning steps, and diffs
+- Automatic cache invalidation on WebSocket events
+- Connection status indicator with neon-pulse animation
+- Fallback to polling when WebSocket unavailable
+
+**Enhanced Page Features:**
+- Home: Real-time task monitoring, advanced task creation with repository search and branch auto-fill
+- TaskDetail: Live log streaming with proper historical/live merge and de-duplication, real-time reasoning chain, diff viewer
+- SystemStatus: Already complete with container runner and MCP server monitoring
+- Statistics: Already complete with provider metrics and cost tracking
+- History: Already complete with GitHub events timeline
+- Settings: Already complete with AI provider configuration and GitHub integration
+
 ### Advanced Features Implemented
 
 **Container Runner System:**

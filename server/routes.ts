@@ -9,6 +9,7 @@ import { MemoryManager } from "./services/memory-manager";
 import { AdvancedPromptEngineer } from "./services/advanced-prompt-engineering";
 import { ContainerRunnerService } from "./services/container-runner";
 import { SessionManager } from "./services/session-manager";
+import { WebSocketService } from "./services/websocket";
 import {
   insertTaskSchema,
   insertGithubEventSchema,
@@ -18,13 +19,17 @@ import {
   insertMCPConnectionSchema,
   type LogEntry,
   type ReasoningStep,
+  type FileDiff,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import fs from "fs/promises";
 import path from "path";
 
-// SSE clients for real-time log streaming
+// SSE clients for real-time log streaming (kept for backwards compatibility)
 const sseClients = new Map<string, Set<any>>();
+
+// WebSocket service instance
+let wsService: WebSocketService | null = null;
 
 let aiService: AIService | null = null;
 let githubService: GitHubService | null = null;
@@ -129,6 +134,13 @@ async function initializeServices() {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await initializeServices();
+
+  // Create HTTP server first
+  const httpServer = createServer(app);
+  
+  // Initialize WebSocket service
+  wsService = new WebSocketService(httpServer);
+  console.log("[WebSocket] Service initialized");
 
   // Middleware to parse JSON
   app.use("/api/webhook", (req, res, next) => {
@@ -435,6 +447,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(repositories);
     } catch (error: any) {
       console.error("Error fetching repositories:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // === GITHUB REPOSITORY BRANCHES ENDPOINT ===
+  app.get("/api/github/repositories/:owner/:repo/branches", async (req, res) => {
+    try {
+      if (!githubService) {
+        return res.status(503).json({ error: "GitHub service not initialized. Please configure GitHub settings." });
+      }
+      
+      const { owner, repo } = req.params;
+      const branches = await githubService.listBranches(owner, repo);
+      res.json(branches);
+    } catch (error: any) {
+      console.error("Error fetching branches:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -964,7 +992,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  const httpServer = createServer(app);
   return httpServer;
 }
 
@@ -994,14 +1021,41 @@ function categorizeTool(toolName: string): string {
   return "other";
 }
 
-// Helper function to broadcast logs to SSE clients
+// Helper function to broadcast logs to SSE clients and WebSocket
 function broadcastLog(taskId: string, log: LogEntry) {
+  // Broadcast via SSE (backwards compatibility)
   const clients = sseClients.get(taskId);
   if (clients) {
     const data = JSON.stringify(log);
     clients.forEach((client) => {
       client.write(`data: ${data}\n\n`);
     });
+  }
+  
+  // Broadcast via WebSocket
+  if (wsService) {
+    wsService.broadcastLogAdded(taskId, log);
+  }
+}
+
+// Helper function to broadcast task updates via WebSocket
+function broadcastTaskUpdate(taskId: string, updates: { status?: any; progress?: number; [key: string]: any }) {
+  if (wsService) {
+    wsService.broadcastTaskUpdate(taskId, updates.status, updates.progress, updates);
+  }
+}
+
+// Helper function to broadcast reasoning steps via WebSocket
+function broadcastReasoning(taskId: string, step: ReasoningStep) {
+  if (wsService) {
+    wsService.broadcastReasoningAdded(taskId, step);
+  }
+}
+
+// Helper function to broadcast diff created via WebSocket
+function broadcastDiff(taskId: string, diff: FileDiff) {
+  if (wsService) {
+    wsService.broadcastDiffCreated(taskId, diff);
   }
 }
 
@@ -1023,6 +1077,7 @@ async function processTask(taskId: string, steps: string[]) {
   
   // Update to planning
   await storage.updateTask(taskId, { status: "planning", progress: 10 });
+  broadcastTaskUpdate(taskId, { status: "planning", progress: 10 });
   await addLog(taskId, "info", "Analyzing task requirements...");
 
   // Add reasoning steps
@@ -1041,24 +1096,27 @@ async function processTask(taskId: string, steps: string[]) {
           completed: true,
         };
         await storage.addTaskReasoning(taskId, reasoningStep);
+        broadcastReasoning(taskId, reasoningStep);
         await addLog(taskId, "success", `Reasoning: ${reasoning.description}`);
       } catch (error) {
         await addLog(taskId, "warn", `Could not generate reasoning for: ${step}`);
       }
     }
 
-    await storage.updateTask(taskId, {
-      progress: 10 + Math.round((i / steps.length) * 40),
-    });
+    const progress = 10 + Math.round((i / steps.length) * 40);
+    await storage.updateTask(taskId, { progress });
+    broadcastTaskUpdate(taskId, { progress });
   }
 
   // Execute
   await storage.updateTask(taskId, { status: "executing", progress: 50 });
+  broadcastTaskUpdate(taskId, { status: "executing", progress: 50 });
   await addLog(taskId, "info", "Executing planned changes...");
 
   await new Promise((resolve) => setTimeout(resolve, 2000));
   await addLog(taskId, "success", "Simulated code modifications applied");
   await storage.updateTask(taskId, { progress: 80 });
+  broadcastTaskUpdate(taskId, { progress: 80 });
 
   await new Promise((resolve) => setTimeout(resolve, 1000));
   await addLog(taskId, "info", "Running test suite...");
@@ -1067,5 +1125,6 @@ async function processTask(taskId: string, steps: string[]) {
 
   // Complete
   await storage.updateTask(taskId, { status: "completed", progress: 100 });
+  broadcastTaskUpdate(taskId, { status: "completed", progress: 100 });
   await addLog(taskId, "success", "Task completed successfully");
 }

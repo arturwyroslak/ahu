@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TaskCard } from "@/components/task-card";
+import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Play, GitBranch, Loader2, AlertCircle } from "lucide-react";
-import type { Task } from "@shared/schema";
+import { useWebSocketSubscription, useWebSocketStatus } from "@/hooks/use-websocket";
+import { Play, GitBranch, Loader2, AlertCircle, Activity, Wifi, WifiOff } from "lucide-react";
+import type { Task, WSMessage } from "@shared/schema";
 
 interface Repository {
   name: string;
@@ -18,20 +20,60 @@ interface Repository {
   default_branch: string;
 }
 
+interface Branch {
+  name: string;
+  commit: {
+    sha: string;
+  };
+}
+
 export default function Home() {
   const { toast } = useToast();
   const [repository, setRepository] = useState("");
   const [branch, setBranch] = useState("main");
   const [description, setDescription] = useState("");
+  const { isConnected } = useWebSocketStatus();
 
   const { data: repositories = [], isLoading: reposLoading } = useQuery<Repository[]>({
     queryKey: ["/api/github/repositories"],
   });
 
+  // Get branches for selected repository
+  const selectedRepo = repositories.find(r => r.full_name === repository);
+  const [owner, repo] = repository ? repository.split('/') : ['', ''];
+  
+  const { data: branches = [], isLoading: branchesLoading } = useQuery<Branch[]>({
+    queryKey: ["/api/github/repositories", owner, repo, "branches"],
+    queryFn: async () => {
+      if (!owner || !repo) return [];
+      const response = await fetch(`/api/github/repositories/${owner}/${repo}/branches`);
+      if (!response.ok) throw new Error('Failed to fetch branches');
+      return response.json();
+    },
+    enabled: !!owner && !!repo,
+  });
+
+  // Auto-fill branch when repository changes
+  useEffect(() => {
+    if (selectedRepo?.default_branch) {
+      setBranch(selectedRepo.default_branch);
+    } else if (branches.length > 0 && !branches.find(b => b.name === branch)) {
+      setBranch(branches[0].name);
+    }
+  }, [repository, selectedRepo, branches, branch]);
+
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
     queryKey: ["/api/tasks/active"],
-    refetchInterval: 3000,
+    // Remove polling - WebSocket handles real-time updates
   });
+
+  // Subscribe to WebSocket for real-time task updates
+  useWebSocketSubscription((message: WSMessage) => {
+    if (message.type === 'task_update') {
+      // Invalidate tasks query to show updates
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/active"] });
+    }
+  }, []);
 
   const createTaskMutation = useMutation({
     mutationFn: async (data: { repository: string; branch: string; description: string }) => {
@@ -91,10 +133,25 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {/* WebSocket Status Indicator */}
+      <div className="flex items-center justify-end gap-2">
+        {isConnected ? (
+          <Badge variant="outline" className="gap-2 neon-border neon-pulse" data-testid="status-websocket-connected">
+            <Wifi className="h-3 w-3 neon-text" />
+            <span className="text-xs neon-text-secondary">Real-time updates active</span>
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-2" data-testid="status-websocket-disconnected">
+            <WifiOff className="h-3 w-3 text-muted-foreground" />
+            <span className="text-xs">Connecting...</span>
+          </Badge>
+        )}
+      </div>
+
       {/* Create Task Form */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 neon-text">
             <Play className="h-5 w-5" />
             Create New Task
           </CardTitle>
@@ -139,15 +196,24 @@ export default function Home() {
                   <Label htmlFor="branch">Branch</Label>
                   <div className="flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-muted-foreground" />
-                    <Select value={branch} onValueChange={setBranch}>
+                    <Select value={branch} onValueChange={setBranch} disabled={!repository || branchesLoading}>
                       <SelectTrigger id="branch" data-testid="select-branch">
-                        <SelectValue />
+                        <SelectValue placeholder={branchesLoading ? "Loading branches..." : "Select branch"} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="main">main</SelectItem>
-                        <SelectItem value="master">master</SelectItem>
-                        <SelectItem value="develop">develop</SelectItem>
-                        <SelectItem value="staging">staging</SelectItem>
+                        {branches.length > 0 ? (
+                          branches.map((b) => (
+                            <SelectItem key={b.name} value={b.name}>
+                              {b.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="main">main</SelectItem>
+                            <SelectItem value="master">master</SelectItem>
+                            <SelectItem value="develop">develop</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -192,7 +258,7 @@ export default function Home() {
 
       {/* Active Tasks List */}
       <div>
-        <h2 className="text-lg font-semibold mb-4">Active Tasks</h2>
+        <h2 className="text-lg font-semibold mb-4 neon-text">Active Tasks</h2>
         {tasksLoading ? (
           <div className="text-center py-12 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" />

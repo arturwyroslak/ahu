@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { ThemeToggle } from "@/components/theme-toggle";
 import Home from "@/pages/home";
 import TaskDetail from "@/pages/task-detail";
 import SystemStatusPage from "@/pages/system-status-page";
@@ -13,6 +12,7 @@ import Statistics from "@/pages/statistics";
 import History from "@/pages/history";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+import { Activity } from "lucide-react";
 
 function Router() {
   return (
@@ -30,8 +30,8 @@ function Router() {
 
 export default function App() {
   const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
+    "--sidebar-width": "18rem",
+    "--sidebar-width-icon": "4rem",
   };
 
   return (
@@ -41,9 +41,18 @@ export default function App() {
           <div className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1">
-              <header className="flex items-center justify-between px-6 py-3 border-b border-border">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <ThemeToggle />
+              <header className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-card/30 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <SidebarTrigger data-testid="button-sidebar-toggle" />
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary neon-pulse" />
+                    <h1 className="text-lg font-semibold neon-text">AI GitHub Agent</h1>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-lg shadow-primary/50" />
+                  <span className="neon-text-secondary">System Active</span>
+                </div>
               </header>
               <main className="flex-1 overflow-auto p-6">
                 <Router />

@@ -8,8 +8,9 @@ import { DiffViewer } from "@/components/diff-viewer";
 import { ArrowLeft, GitBranch, Calendar } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { Task } from "@shared/schema";
-import { useEffect, useState } from "react";
+import { useTaskWebSocket } from "@/hooks/use-websocket";
+import type { Task, LogEntry } from "@shared/schema";
+import { useMemo } from "react";
 
 export default function TaskDetail() {
   const [, params] = useRoute("/task/:id");
@@ -20,27 +21,50 @@ export default function TaskDetail() {
     enabled: !!taskId,
   });
 
-  // SSE for real-time logs
-  const [liveLogs, setLiveLogs] = useState<Task["logs"]>([]);
+  // Fetch historical logs from API
+  const { data: historicalLogs = [] } = useQuery<LogEntry[]>({
+    queryKey: ["/api/tasks", taskId, "logs"],
+    enabled: !!taskId,
+  });
 
-  useEffect(() => {
-    if (!taskId) return;
+  // WebSocket subscription for real-time updates (replaces SSE)
+  useTaskWebSocket(taskId);
 
-    const eventSource = new EventSource(`/api/tasks/${taskId}/logs/stream`);
+  // Merge historical logs with live WebSocket logs, de-duplicate, and sort by timestamp
+  const allLogs = useMemo(() => {
+    const liveLogs = task?.logs || [];
+    const existingKeys = new Set<string>();
+    const dedupedLogs: LogEntry[] = [];
 
-    eventSource.onmessage = (event) => {
-      const log = JSON.parse(event.data);
-      setLiveLogs((prev) => [...prev, log]);
-    };
+    // Helper to generate composite key
+    const getLogKey = (log: LogEntry) => 
+      log.id ?? `${log.timestamp}-${log.message}`;
 
-    eventSource.onerror = () => {
-      eventSource.close();
-    };
+    // First pass: deduplicate historical logs
+    for (const log of historicalLogs) {
+      const key = getLogKey(log);
+      if (!existingKeys.has(key)) {
+        dedupedLogs.push(log);
+        existingKeys.add(key);
+      }
+    }
 
-    return () => {
-      eventSource.close();
-    };
-  }, [taskId]);
+    // Second pass: merge live logs, skipping duplicates
+    for (const log of liveLogs) {
+      const key = getLogKey(log);
+      if (!existingKeys.has(key)) {
+        dedupedLogs.push(log);
+        existingKeys.add(key);
+      }
+    }
+
+    // Sort by timestamp chronologically (oldest first)
+    return dedupedLogs.sort((a, b) => {
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : Number.POSITIVE_INFINITY;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : Number.POSITIVE_INFINITY;
+      return timeA - timeB;
+    });
+  }, [historicalLogs, task?.logs]);
 
   const formatTimestamp = (isoString: string) => {
     const date = new Date(isoString);
@@ -62,8 +86,6 @@ export default function TaskDetail() {
       </div>
     );
   }
-
-  const allLogs = liveLogs.length > 0 ? liveLogs : task.logs;
 
   return (
     <div className="space-y-6">
@@ -114,12 +136,12 @@ export default function TaskDetail() {
           <div className="h-[500px]">
             <ExecutionLogPanel logs={allLogs} />
           </div>
-          {task.diffs.length > 0 && <DiffViewer files={task.diffs} />}
+          {(task.diffs || []).length > 0 && <DiffViewer files={task.diffs || []} />}
         </div>
 
         <div className="space-y-6">
-          {task.reasoning.length > 0 && (
-            <AIReasoningChain steps={task.reasoning} />
+          {(task.reasoning || []).length > 0 && (
+            <AIReasoningChain steps={task.reasoning || []} />
           )}
           
           <Card>

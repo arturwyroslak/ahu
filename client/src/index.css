@@ -2,173 +2,114 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE */
+/* DARK NEON THEME - Red/Orange Only */
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
-  --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
-  --background: 0 0% 100%;
-  --foreground: 0 0% 0%;
-  --border: 0 0% 96.47%;
-  --card: 0 0% 96.47%;
-  --card-foreground: 0 0% 0%;
-  --card-border: 0 0% 93%;
-  --sidebar: 180 6.6667% 97.0588%;
-  --sidebar-foreground: 210 25% 7.8431%;
-  --sidebar-border: 205.0000 25.0000% 90.5882%;
-  --sidebar-primary: 203.8863 88.2845% 53.1373%;
+  --button-outline: rgba(255, 87, 34, 0.3);
+  --badge-outline: rgba(255, 152, 0, 0.2);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255, 87, 34, 0.08);
+  --elevate-2: rgba(255, 152, 0, 0.15);
+  
+  /* Base colors - Deep dark with red/orange accents */
+  --background: 0 0% 4%;
+  --foreground: 14 90% 65%;
+  --border: 14 45% 15%;
+  
+  /* Card colors */
+  --card: 0 0% 7%;
+  --card-foreground: 14 85% 70%;
+  --card-border: 14 60% 20%;
+  
+  /* Sidebar colors - darker with neon accents */
+  --sidebar: 0 0% 5%;
+  --sidebar-foreground: 14 90% 68%;
+  --sidebar-border: 14 70% 18%;
+  --sidebar-primary: 14 100% 55%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 211.5789 51.3514% 92.7451%;
-  --sidebar-accent-foreground: 203.8863 88.2845% 53.1373%;
-  --sidebar-ring: 202.8169 89.1213% 53.1373%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 0%;
-  --popover-border: 0 0% 96%;
-  --primary: 96 85.19% 73.53%;
-  --primary-foreground: 0 0% 0%;
-  --secondary: 0 0% 0%;
+  --sidebar-accent: 14 80% 12%;
+  --sidebar-accent-foreground: 24 100% 60%;
+  --sidebar-ring: 14 100% 55%;
+  
+  /* Popover colors */
+  --popover: 0 0% 6%;
+  --popover-foreground: 14 85% 70%;
+  --popover-border: 14 50% 15%;
+  
+  /* Primary - Vibrant orange-red */
+  --primary: 14 100% 55%;
+  --primary-foreground: 0 0% 100%;
+  
+  /* Secondary - Deep orange */
+  --secondary: 24 100% 45%;
   --secondary-foreground: 0 0% 100%;
-  --muted: 0 0% 96.08%;
-  --muted-foreground: 0 0% 52.94%;
-  --accent: 254.21 100% 92.55%;
-  --accent-foreground: 0 0% 0%;
-  --destructive: 2.04 74.62% 61.37%;
+  
+  /* Muted colors */
+  --muted: 0 0% 12%;
+  --muted-foreground: 14 50% 50%;
+  
+  /* Accent - Bright orange */
+  --accent: 24 100% 50%;
+  --accent-foreground: 0 0% 100%;
+  
+  /* Destructive - Red with neon */
+  --destructive: 0 85% 55%;
   --destructive-foreground: 0 0% 100%;
-  --input: 0 0% 0%;
-  --ring: 0 0% 0%;
-  --chart-1: 203.8863 88.2845% 53.1373%;
-  --chart-2: 159.7826 100% 36.0784%;
-  --chart-3: 42.0290 92.8251% 56.2745%;
-  --chart-4: 147.1429 78.5047% 41.9608%;
-  --chart-5: 341.4894 75.2000% 50.9804%;
+  
+  /* Input and ring */
+  --input: 14 60% 20%;
+  --ring: 14 100% 55%;
+  
+  /* Chart colors - orange/red spectrum */
+  --chart-1: 14 100% 55%;
+  --chart-2: 24 100% 50%;
+  --chart-3: 30 100% 50%;
+  --chart-4: 6 90% 55%;
+  --chart-5: 0 85% 55%;
+  
+  /* Neon glow colors */
+  --neon-primary: 14 100% 55%;
+  --neon-secondary: 24 100% 60%;
+  --neon-accent: 30 100% 65%;
+  
+  /* Typography */
   --font-sans: 'Space Grotesk', sans-serif;
   --font-serif: 'Geist', sans-serif;
   --font-mono: 'Geist Mono', monospace;
-  --radius: 0rem;
-  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-sm: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --tracking-normal: 0em;
+  --radius: 0.5rem;
+  --tracking-normal: 0.01em;
   --spacing: 0.25rem;
+  
+  /* Neon shadows */
+  --shadow-2xs: 0 0 5px hsl(14 100% 55% / 0.3);
+  --shadow-xs: 0 0 8px hsl(14 100% 55% / 0.4);
+  --shadow-sm: 0 0 10px hsl(14 100% 55% / 0.4), 0 2px 4px hsl(0 0% 0% / 0.3);
+  --shadow: 0 0 15px hsl(14 100% 55% / 0.5), 0 4px 6px hsl(0 0% 0% / 0.4);
+  --shadow-md: 0 0 20px hsl(14 100% 55% / 0.5), 0 4px 8px hsl(0 0% 0% / 0.5);
+  --shadow-lg: 0 0 25px hsl(14 100% 55% / 0.6), 0 8px 12px hsl(0 0% 0% / 0.6);
+  --shadow-xl: 0 0 30px hsl(14 100% 55% / 0.7), 0 12px 16px hsl(0 0% 0% / 0.7);
+  --shadow-2xl: 0 0 40px hsl(14 100% 55% / 0.8), 0 16px 24px hsl(0 0% 0% / 0.8);
 
-/* Fallback for older browsers */
+  /* Border colors with fallbacks */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* Fallback for older browsers */
   --sidebar-accent-border: hsl(var(--sidebar-accent));
   --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* Fallback for older browsers */
   --primary-border: hsl(var(--primary));
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* Fallback for older browsers */
   --secondary-border: hsl(var(--secondary));
   --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* Fallback for older browsers */
   --muted-border: hsl(var(--muted));
   --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* Fallback for older browsers */
   --accent-border: hsl(var(--accent));
   --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* Fallback for older browsers */
   --destructive-border: hsl(var(--destructive));
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-}
-
-.dark {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
-  --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
-  --background: 0 0% 0%;
-  --foreground: 200 6.6667% 91.1765%;
-  --border: 210 5.2632% 14.9020%;
-  --card: 228 9.8039% 10%;
-  --card-foreground: 0 0% 85.0980%;
-  --card-border: 205.71 15.79% 26.08%;
-  --sidebar: 228 9.8039% 10%;
-  --sidebar-foreground: 0 0% 85.0980%;
-  --sidebar-border: 205.7143 15.7895% 26.0784%;
-  --sidebar-primary: 202.8169 89.1213% 53.1373%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 205.7143 70% 7.8431%;
-  --sidebar-accent-foreground: 203.7736 87.6033% 52.5490%;
-  --sidebar-ring: 202.8169 89.1213% 53.1373%;
-  --popover: 0 0% 0%;
-  --popover-foreground: 200 6.6667% 91.1765%;
-  --popover-border: 0 0% 9.41%;
-  --primary: 203.7736 87.6033% 52.5490%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 195.0000 15.3846% 94.9020%;
-  --secondary-foreground: 210 25% 7.8431%;
-  --muted: 0 0% 9.4118%;
-  --muted-foreground: 210 3.3898% 46.2745%;
-  --accent: 205.7143 70% 7.8431%;
-  --accent-foreground: 203.7736 87.6033% 52.5490%;
-  --destructive: 356.3033 90.5579% 54.3137%;
-  --destructive-foreground: 0 0% 100%;
-  --input: 207.6923 27.6596% 18.4314%;
-  --ring: 202.8169 89.1213% 53.1373%;
-  --chart-1: 203.8863 88.2845% 53.1373%;
-  --chart-2: 159.7826 100% 36.0784%;
-  --chart-3: 42.0290 92.8251% 56.2745%;
-  --chart-4: 147.1429 78.5047% 41.9608%;
-  --chart-5: 341.4894 75.2000% 50.9804%;
-  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-sm: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-
-/* Fallback for older browsers */
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --primary-border: hsl(var(--primary));
-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --secondary-border: hsl(var(--secondary));
-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --muted-border: hsl(var(--muted));
-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --accent-border: hsl(var(--accent));
-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --destructive-border: hsl(var(--destructive));
-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --radius: 1.3rem;
-  --spacing: 0.25rem;
-  --font-mono: Menlo, monospace;
-  --font-sans: Open Sans, sans-serif;
-  --font-serif: Georgia, serif;
-  --tracking-normal: 0em;
 }
 
 @layer base {
@@ -177,7 +118,120 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased bg-background text-foreground relative;
+  }
+
+  /* Background glow effects */
+  body::before {
+    content: "";
+    position: fixed;
+    top: -50%;
+    left: -20%;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(circle, 
+      hsl(14 100% 35% / 0.15) 0%, 
+      hsl(24 100% 40% / 0.1) 25%, 
+      transparent 70%);
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+    animation: float 20s ease-in-out infinite;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    bottom: -30%;
+    right: -15%;
+    width: 50%;
+    height: 50%;
+    background: radial-gradient(circle, 
+      hsl(0 90% 40% / 0.12) 0%, 
+      hsl(14 85% 35% / 0.08) 30%, 
+      transparent 70%);
+    filter: blur(90px);
+    pointer-events: none;
+    z-index: 0;
+    animation: float 25s ease-in-out infinite reverse;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+    }
+    33% {
+      transform: translate(30px, -30px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+  }
+
+  /* Ensure main content is above background glows */
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Neon text glow */
+  .neon-text {
+    text-shadow: 0 0 10px hsl(var(--neon-primary) / 0.8),
+                 0 0 20px hsl(var(--neon-primary) / 0.4),
+                 0 0 30px hsl(var(--neon-primary) / 0.2);
+  }
+
+  .neon-text-secondary {
+    text-shadow: 0 0 8px hsl(var(--neon-secondary) / 0.7),
+                 0 0 16px hsl(var(--neon-secondary) / 0.3);
+  }
+
+  /* Neon border glow */
+  .neon-border {
+    box-shadow: 0 0 5px hsl(var(--neon-primary) / 0.5),
+                0 0 10px hsl(var(--neon-primary) / 0.3),
+                inset 0 0 5px hsl(var(--neon-primary) / 0.2);
+  }
+
+  /* Subtle pulse animation for active elements */
+  @keyframes neon-pulse {
+    0%, 100% {
+      box-shadow: 0 0 5px hsl(var(--neon-primary) / 0.5),
+                  0 0 10px hsl(var(--neon-primary) / 0.3);
+    }
+    50% {
+      box-shadow: 0 0 8px hsl(var(--neon-primary) / 0.7),
+                  0 0 15px hsl(var(--neon-primary) / 0.5),
+                  0 0 20px hsl(var(--neon-primary) / 0.3);
+    }
+  }
+
+  .neon-pulse {
+    animation: neon-pulse 2s ease-in-out infinite;
+  }
+
+  /* Enhanced focus states for accessibility */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.2);
+  }
+
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.5),
+                0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid hsl(var(--accent));
+    outline-offset: 0;
+    box-shadow: 0 0 0 4px hsl(var(--accent) / 0.2),
+                0 0 15px hsl(var(--accent) / 0.4);
   }
 }
 
